@@ -1,0 +1,14 @@
+{
+  "name": "interface-path-server",
+  "version": "1.0.0",
+  "description": "A server to stream path data from iPad interface to CVcontrol to robot. ",
+  "main": "interface-server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.15.3"
+  }
+}
