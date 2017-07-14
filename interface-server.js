@@ -2,7 +2,7 @@
 var express = require('express'),
     app = express(),
     bodyParser = require('body-parser'),
-    yaml = require('write-yaml');
+    fs = require('fs');
 
 app.use(bodyParser.json());
 app.set('port', (process.env.PORT || 5000));
@@ -11,16 +11,19 @@ app.post('/path', function(req, res) {
   // Do something with req.body.path here
   // Convert to YAML file?
 
-  var path = [];
+  var stream = fs.createWriteStream("../path_0.yml");
+  stream.write("%YAML:1.0\n");
+  stream.write("features:\n");
+
   req.body.path.forEach(function(element) {
-    var current = { x: element[0], y: element[1] };
-    path.push(current);
+    stream.write("   - { x:");
+    stream.write(String(element[0]));
+    stream.write(", y:");
+    stream.write(String(element[1]));
+    stream.write(" }\n");
   });
-  console.log(path);
 
-  var data = { features: path };
-
-  yaml.sync('../path_0.yml', data);
+  console.log("Path received and printed. ");
 
   res.send({ status: 'SUCCESS' });
 });
