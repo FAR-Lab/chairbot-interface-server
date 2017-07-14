@@ -2,7 +2,8 @@
 var express = require('express'),
     app = express(),
     bodyParser = require('body-parser'),
-    fs = require('fs');
+    fs = require('fs'),
+    exec = child_process.exec;
 
 app.use(bodyParser.json());
 app.set('port', (process.env.PORT || 5000));
@@ -24,6 +25,16 @@ app.post('/path', function(req, res) {
   });
 
   console.log("Path received and printed. ");
+
+  /*
+  exec("../CVcontrol4", function(err, stdout, stderr) {
+    if (err) {
+        console.log('Child process exited with error code', err.code);
+        return;
+    }
+    console.log(stdout);
+  });
+  */
 
   res.send({ status: 'SUCCESS' });
 });
