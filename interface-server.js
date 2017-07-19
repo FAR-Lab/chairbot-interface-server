@@ -1,21 +1,29 @@
-// Express application to receive paths from iPad
+/*
+ *  An express application to accept a path from an iPad
+ *  and connect to the OpenCV control system for ChairBot.
+ *
+ */
+
+// Require the modules needed
 var express = require('express'),
     app = express(),
     bodyParser = require('body-parser'),
     fs = require('fs'),
     exec = child_process.exec;
 
+// Express app setup
 app.use(bodyParser.json());
 app.set('port', (process.env.PORT || 5000));
+
+// Define /path route
 app.post('/path', function(req, res) {
 
-  // Do something with req.body.path here
-  // Convert to YAML file?
-
+  // Prepare write stream for the YAML path file to be written
   var stream = fs.createWriteStream("../path_0.yml");
   stream.write("%YAML:1.0\n");
   stream.write("features:\n");
 
+  // Write the path array to the file
   req.body.path.forEach(function(element) {
     stream.write("   - { x:");
     stream.write(String(element[0]));
@@ -26,7 +34,7 @@ app.post('/path', function(req, res) {
 
   console.log("Path received and printed. ");
 
-  /*
+  // Execute the OpenCV control system
   exec("../CVcontrol4", function(err, stdout, stderr) {
     if (err) {
         console.log('Child process exited with error code', err.code);
@@ -34,18 +42,12 @@ app.post('/path', function(req, res) {
     }
     console.log(stdout);
   });
-  */
 
   res.send({ status: 'SUCCESS' });
 });
+
+// Start server
 app.listen(app.get('port'), function() {
   console.log('Server running on port ', app.get('port'));
 });
 
-/****
-
-TODO:
-1. Convert path received from iPad into YAML format.
-2. Start OpenCV process using the path received from iPad.
-
-****/
