@@ -9,7 +9,11 @@ var express = require('express'),
     app = express(),
     bodyParser = require('body-parser'),
     fs = require('fs'),
-    exec = child_process.exec;
+    exec = child_process.exec,
+    WebSocket = require('ws');
+
+// Connect to neato websocket
+const ws = new WebSocket("ws://neato-04.local:3000");
 
 // Express app setup
 app.use(bodyParser.json());
@@ -45,6 +49,15 @@ app.post('/path', function(req, res) {
 
   res.send({ status: 'SUCCESS' });
 });
+
+app.post('/stop', function(req, res) {
+
+    console.log('Neato stop request received. ');
+
+    ws.on('open', function open() {
+        ws.send("0,0,0");
+    })
+})
 
 // Start server
 app.listen(app.get('port'), function() {
