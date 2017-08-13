@@ -9,11 +9,11 @@ var express = require('express'),
     app = express(),
     bodyParser = require('body-parser'),
     fs = require('fs'),
-    exec = child_process.exec,
+    exec = require('child_process').exec,
     WebSocket = require('ws');
 
 // Connect to neato websocket
-const ws = new WebSocket("ws://neato-04.local:3000");
+//const ws = new WebSocket("ws://neato-04.local:3000");
 
 // Express app setup
 app.use(bodyParser.json());
@@ -39,7 +39,8 @@ app.post('/path', function(req, res) {
   console.log("Path received and printed. ");
 
   // Execute the OpenCV control system
-  exec("../CVcontrol4", function(err, stdout, stderr) {
+
+  exec("../CV1", function(err, stdout, stderr) {
     if (err) {
         console.log('Child process exited with error code', err.code);
         return;
@@ -54,9 +55,11 @@ app.post('/stop', function(req, res) {
 
     console.log('Neato stop request received. ');
 
+    /*
     ws.on('open', function open() {
         ws.send("0,0,0");
     })
+    */
 })
 
 // Start server
