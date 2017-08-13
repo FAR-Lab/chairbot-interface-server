@@ -43,7 +43,7 @@ app.post('/path', function(req, res) {
 
   // Execute the OpenCV control system
 
-  cv = exec("../CVcontrol4", function(err, stdout, stderr) {
+  cv = exec("../CV1", function(err, stdout, stderr) {
     if (err) {
         console.log('Child process exited with error code', err.code);
         return;
