@@ -10,7 +10,8 @@ var express = require('express'),
     bodyParser = require('body-parser'),
     fs = require('fs'),
     exec = require('child_process').exec,
-    WebSocket = require('ws');
+    WebSocket = require('ws'),
+    spawn = require('child_process').spawn;
 
 // Child Process
 var cv = null;
@@ -41,9 +42,19 @@ app.post('/path', function(req, res) {
 
   console.log("Path received and printed. ");
 
+
   // Execute the OpenCV control system
 
-  cv = exec("../CV1", function(err, stdout, stderr) {
+  const defaults = {
+    encoding: 'utf8',
+    timeout: 0,
+    maxBuffer: 1024 * 1024,
+    killSignal: 'SIGTERM',
+    cwd: null,
+    env: null
+  }
+
+  cv = spawn("../CV1", defaults, function(err, stdout, stderr) {
     if (err) {
         console.log('Child process exited with error code', err.code);
         return;
@@ -58,17 +69,16 @@ app.post('/stop', function(req, res) {
 
     console.log('Neato stop request received. ');
 
-    /*
-    ws.on('open', function open() {
-        ws.send("0,0,0");
-    })
-    */
-
-    if(cv !== null) cv.kill();
+    if(cv !== null) {
+        cv.kill('SIGTERM');
+        res.send('success');
+    } else {
+      res.send('failed');
+      console.log('could not kill CV app');
+    }
 });
 
 // Start server
 app.listen(app.get('port'), function() {
   console.log('Server running on port ', app.get('port'));
 });
-
