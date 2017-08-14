@@ -59,6 +59,7 @@ app.post('/path', function(req, res) {
         console.log('Child process exited with error code', err.code);
         return;
     }
+
     console.log(stdout);
   });
 
