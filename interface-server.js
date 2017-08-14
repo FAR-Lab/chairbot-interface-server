@@ -46,14 +46,12 @@ app.post('/path', function(req, res) {
   // Execute the OpenCV control system
 
   const defaults = {
-    encoding: 'utf8',
-    timeout: 0,
-    maxBuffer: 1024 * 1024,
-    killSignal: 'SIGTERM',
-    cwd: null,
-    env: null
+    cwd: "/home/ubuntu-cdr/Chairbot/chairbot-control/",
+    shell: true,
+    env: null,
   }
 
+    /*
   cv = spawn("../CV1", defaults, function(err, stdout, stderr) {
     if (err) {
         console.log('Child process exited with error code', err.code);
@@ -62,6 +60,8 @@ app.post('/path', function(req, res) {
 
     console.log(stdout);
   });
+    */
+    cv = spawn("./CV1", [], defaults);
 
   res.send({ status: 'SUCCESS' });
 });
@@ -71,7 +71,7 @@ app.post('/stop', function(req, res) {
     console.log('Neato stop request received. ');
 
     if(cv !== null) {
-        cv.kill('SIGTERM');
+        process.kill(cv.pid + 1);
         res.send('success');
     } else {
       res.send('failed');
