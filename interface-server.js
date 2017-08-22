@@ -61,7 +61,7 @@ app.post('/path', function(req, res) {
     console.log(stdout);
   });
     */
-    cv = spawn("./CV1", [], defaults);
+    cv = spawn("sh", [ "runCV.sh" ], defaults);
 
   res.send({ status: 'SUCCESS' });
 });
@@ -71,7 +71,7 @@ app.post('/stop', function(req, res) {
     console.log('Neato stop request received. ');
 
     if(cv !== null) {
-        process.kill(cv.pid + 1);
+        process.kill(cv.pid + 2);
         res.send('success');
     } else {
       res.send('failed');
