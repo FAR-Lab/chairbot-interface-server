@@ -72,9 +72,9 @@ app.post('/stop', function(req, res) {
 
     if(cv !== null) {
         process.kill(cv.pid + 2);
-        res.send('success');
+        res.send({ status: 'SUCCESS' });
     } else {
-      res.send('failed');
+      res.send({ status: 'FAILURE' });
       console.log('could not kill CV app');
     }
 });
