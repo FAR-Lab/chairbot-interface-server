@@ -17,11 +17,24 @@ var express = require('express'),
 var cv = null;
 
 // Connect to neato websocket
-//const ws = new WebSocket("ws://neato-04.local:3000");
 
 // Express app setup
 app.use(bodyParser.json());
+app.use(express.static('static'));
 app.set('port', (process.env.PORT || 5000));
+app.set('views', './pages');
+
+var wasdInfo = {direction: "stop"};
+app.post('/wasd', function(req, res) {
+  console.log(req.query.direction);
+  wasdInfo = {direction: req.query.direction}
+  wasdInfo.at = Date.now();
+  res.send('ok');
+});
+
+app.get('/', function (req, res) {
+  res.sendFile('pages/main.html', {root: __dirname});
+});
 
 // Define /path route
 app.post('/path', function(req, res) {
@@ -77,6 +90,44 @@ app.post('/stop', function(req, res) {
       res.send({ status: 'FAILURE' });
       console.log('could not kill CV app');
     }
+});
+
+const ws = new WebSocket("ws://"+(process.env.NEATO_HOST || "neato-04.local:3000"));
+ws.on('open', function() {
+  ws.on('message', function(message) {
+    if (message.startsWith('pong')) {
+      console.log("successfully connected!");
+    }
+  });
+  ws.send('ping');
+  
+  setInterval(function() {
+    if (wasdInfo.direction !== "stop") {
+      var out = {
+        speed: 300
+      };
+      switch (wasdInfo.direction) {
+      case 'up':
+        out.left = 150;
+        out.right = 150;
+        break;
+      case 'down':
+        out.left = -150;
+        out.right = -150;
+        break;
+      case 'left':
+        out.left = 150;
+        out.right = -150;
+        break;
+      case 'right':
+        out.left = -150;
+        out.right = 150;
+        break;
+      }
+      ws.send(JSON.stringify(out));      
+      wasdInfo = {direction: "stop"};
+    }
+  }, 500);
 });
 
 // Start server
