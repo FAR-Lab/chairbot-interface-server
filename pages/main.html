@@ -53,12 +53,59 @@
   <script type="text/javascript">
     var buttons = Array.prototype.slice.call(document.getElementsByTagName('button'));
     
+    var control = {
+      linear: 0,
+      rotation: 0
+    };
+    
+    var diffs = {
+      up: {linear: +25},
+      down: {linear: -25},
+      left: {rotation: -25},
+      right: {rotation: +25}
+    };
+    
+    var pollTimeout;
+    
+    function sendControl() {
+      if (pollTimeout) {
+        clearTimeout(pollTimeout);
+      }
+      
+      $.post('/wasd?linear='+control.linear+'&rotation='+control.rotation);
+      
+      if (control.linear != 0 || control.rotation != 0) {
+        pollTimeout = setTimeout(sendControl, 500);
+      }
+    }
+    
+    var buttonState = {};
+    
     buttons.forEach(function(button) {
       var id = button.id;
       console.log("setting up button for", id);
-      button.onclick = function() {      
-        $.post('/wasd?direction='+id);
+
+      button.onmousedown = function() {
+        buttonState[id] = true;
+        if (id == "stop") {
+          control = {linear: 0, rotation: 0};
+        } else {
+          control.linear += diffs[id].linear || 0;
+          control.rotation += diffs[id].rotation || 0;
+        }
+        sendControl();
       };
+      if (id == 'left' || id == 'right') {
+        button.onmouseup = button.onmouseleave = function() {
+          if (buttonState[id]) {
+            delete buttonState[id];
+            control.linear -= diffs[id].linear || 0;
+            control.rotation -= diffs[id].rotation || 0;
+
+            sendControl();
+          }
+        }
+      }      
     });
   </script>
 </body>

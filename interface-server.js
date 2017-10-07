@@ -26,9 +26,9 @@ app.set('views', './pages');
 
 var wasdInfo = {direction: "stop"};
 app.post('/wasd', function(req, res) {
-  console.log(req.query.direction);
-  wasdInfo = {direction: req.query.direction}
-  wasdInfo.at = Date.now();
+  console.log(req.query.linear, req.query.rotation);
+  wasdInfo = {linear: Number(req.query.linear), rotation: Number(req.query.rotation)};
+  
   res.send('ok');
 });
 
@@ -100,35 +100,30 @@ ws.on('open', function() {
     }
   });
   ws.send('ping');
-  
-  setInterval(function() {
-    if (wasdInfo.direction !== "stop") {
-      var out = {
-        speed: 300
-      };
-      switch (wasdInfo.direction) {
-      case 'up':
-        out.left = 150;
-        out.right = 150;
-        break;
-      case 'down':
-        out.left = -150;
-        out.right = -150;
-        break;
-      case 'left':
-        out.left = 150;
-        out.right = -150;
-        break;
-      case 'right':
-        out.left = -150;
-        out.right = 150;
-        break;
-      }
-      ws.send(JSON.stringify(out));      
-      wasdInfo = {direction: "stop"};
-    }
-  }, 500);
 });
+
+var commandTimeout;
+
+function sendCommand() {
+  if (commandTimeout) {
+    clearTimeout(commandTimeout);
+  }
+  
+  var out = {
+    speed: Math.abs(wasdInfo.linear)
+  }
+  var distance = Math.sign(wasdInfo.linear) * 150;
+  var differential = wasdInfo.rotation;
+  
+  out.left = distance + differential;
+  out.right = distance - differential;
+  
+  ws.send(JSON.stringify(out));
+  
+  if (out.speed > 0) {
+    commandTimeout = setTimeout(sendCommand, 500);
+  }
+}
 
 // Start server
 app.listen(app.get('port'), function() {
