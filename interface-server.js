@@ -113,11 +113,11 @@ function sendCommand() {
   var out = {
     speed: Math.abs(wasdInfo.linear)
   }
-  var distance = Math.sign(wasdInfo.linear) * 150;
+  var distance = Math.sign(wasdInfo.linear) * (out.speed * 0.6);
   var differential = wasdInfo.rotation;
   
-  out.left = distance + differential;
-  out.right = distance - differential;
+  out.left = distance + (differential * 0.6);
+  out.right = distance - (differential * 0.6);
   
   ws.send(JSON.stringify(out));
   
