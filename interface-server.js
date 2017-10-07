@@ -24,10 +24,11 @@ app.use(express.static('static'));
 app.set('port', (process.env.PORT || 5000));
 app.set('views', './pages');
 
-var wasdInfo = {direction: "stop"};
+var wasdInfo = {linear: 0, rotation: 0};
 app.post('/wasd', function(req, res) {
   console.log(req.query.linear, req.query.rotation);
   wasdInfo = {linear: Number(req.query.linear), rotation: Number(req.query.rotation)};
+  sendCommand();
   
   res.send('ok');
 });
