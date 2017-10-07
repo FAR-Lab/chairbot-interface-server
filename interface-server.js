@@ -109,18 +109,23 @@ function sendCommand() {
   if (commandTimeout) {
     clearTimeout(commandTimeout);
   }
-  
+
   var out = {
     speed: Math.abs(wasdInfo.linear)
   }
-  var distance = Math.sign(wasdInfo.linear) * (out.speed * 0.6);
   var differential = wasdInfo.rotation;
-  
+  if (differential != 0 && out.speed == 0) {
+    out.speed = 50;
+  }
+
+  var distance = Math.sign(wasdInfo.linear) * (out.speed * 0.6);
+
   out.left = distance + (differential * 0.6);
   out.right = distance - (differential * 0.6);
-  
+
   ws.send(JSON.stringify(out));
-  
+
+
   if (out.speed > 0) {
     commandTimeout = setTimeout(sendCommand, 500);
   }
