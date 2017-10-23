@@ -11,6 +11,16 @@
       height: 100%;
       width: 100%;
     }
+    
+    #root, #drag-view {
+      position: absolute;
+      margin: 0;
+      padding: 0;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 100%;
+    }
         
     .buttons {
       width: 200px;
@@ -33,9 +43,13 @@
       border: 0;
     }
   </style>
-  <title>WASD control</title>
+  <title>Path control</title>
+  
+  <script src="https://unpkg.com/react@16/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@16/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/babel-standalone@6.15.0/babel.min.js"></script>
   <script src="jquery-3.2.1.js"></script>
-</head>
+  </head>
 <body>
   <iframe id="camera-frame"></iframe>
   <script type="text/javascript">
@@ -43,68 +57,209 @@
     camera.src = "http://"+document.location.hostname+":8080/view-stream.html"
   </script>
   <div class="buttons">
-    <button id="up">Forward</button><br>
-    <button id="left">Left</button>
-    <button id="stop">Stop</button>
-    <button id="right">Right</button><br>
-    <button id="down">Reverse</button>
+    <p>Drag on the screen, starting from a chairbot, to request a path.</p>
   </div>
+  <div id="root"><!-- react root --></div>
   
-  <script type="text/javascript">
-    var buttons = Array.prototype.slice.call(document.getElementsByTagName('button'));
+  <script type="text/babel">
+    var socket;
     
-    var control = {
-      linear: 0,
-      rotation: 0
-    };
-    
-    var diffs = {
-      up: {linear: +25},
-      down: {linear: -25},
-      left: {rotation: -0.5},
-      right: {rotation: +0.5}
-    };
-
-    var pollTimeout;
-
-    function sendControl() {
-      if (pollTimeout) {
-        clearTimeout(pollTimeout);
+    function connectNewSocket() {
+      socket = new WebSocket("ws://"+document.location.host+"/web-controller");
+      socket.onmessage = function(event) {
+        let data = JSON.parse(event.data);
+        data.bots.forEach(handleUpdate);
       }
+      socket.onopen = function(event) {
+        socket.onclose = function() {
+          setTimeout(connectNewSocket, 500);
+        }
+      }
+    }
+    $(connectNewSocket);
+    
+    function pathId() {
+      return ""+Math.round(Math.random()*1e7);
+    }
+    
+    function sendPath(fiducialKey, path) {
+      console.log("requesting path", fiducialKey, path);
+      let pid = pathId();
+      socket.send(JSON.stringify({
+        action: "requestPath",
+        bot: fiducialKey,
+        pathId: pid,
+        path: path
+      }));
+    }
 
-      $.post('/wasd?linear='+control.linear+'&rotation='+control.rotation);
+    var theViewer;
+    function handleUpdate(update) {
+      if (theViewer) {
+        theViewer.handleUpdate(update);
+      }
+    }
+    
+    function centerOf(pts) {
+      return pts.reduce((p, c, _, {length: n}) => ({x: p.x+c.x/n, y: p.y+c.y/n}), {x: 0, y: 0}); // average of points
+    }
+    
+    function distance(p1, p2) {
+      return p1 == null || p2 == null ? Number.POSITIVE_INFINITY : Math.sqrt(Math.pow(p2.x-p1.x, 2) + Math.pow(p2.y-p1.y, 2));
+    }
+    
+    function scale(pt, scale) {
+      return pt ? {x: scale*pt.x, y: scale*pt.y} : {x: 0, y: 0};
+    }
 
-      if (control.linear != 0 || control.rotation != 0) {
-        pollTimeout = setTimeout(sendControl, 500);
+    class ChairBot extends React.Component {
+      chair() {
+        let loc = this.props.status.location.map(pt => scale(pt, 100));
+        console.log("path from", loc);
+        let [p1, p2, p3, p4] = loc;
+        let cpt = centerOf(loc);
+        let dir = centerOf([p1, p2]);
+        
+        return `M${p1.x},${p1.y}L${p2.x},${p2.y}L${p3.x},${p3.y}L${p4.x},${p4.y}Z M${cpt.x},${cpt.y}L${dir.x},${dir.y}`;
+      }
+      
+      path() {
+        let points = (this.props.status.path || []).map(pt => scale(pt, 100));
+        if (points.length > 0) {
+          return "M" + points.map(({x, y}) => `${x},${y}`).join("L")
+        } else {
+          return "";
+        }
+      }
+      
+      render() {
+        return <g>
+          <path d={this.chair()} strokeWidth="1" stroke="#000" fill="none" />
+          {this.props.status.path ? <path d={this.path()} strokeWidth="1" stroke="#a00" fill="none" /> : ""}
+        </g>
+      }
+    }
+    
+    class PathView extends React.Component {
+      path() {
+        let loc = this.props.path.map(pt => scale(pt, 100));
+        return `M${loc.map(pt => `${pt.x},${pt.y}`).join('L')}`;
+      }
+      
+      render() {
+        return <path d={this.path()} strokeWidth="1" fill="none" />
       }
     }
 
-    var buttonState = {};
-
-    buttons.forEach(function(button) {
-      var id = button.id;
-      console.log("setting up button for", id);
-
-      button.onmousedown = function() {
-        buttonState[id] = true;
-        if (id == "stop") {
-          control = {linear: 0, rotation: 0};
-        } else {
-          control.linear += diffs[id].linear || 0;
-          control.rotation = (diffs[id].rotation || 0) * (control.linear || 100);
-        }
-        sendControl();
-      };
-      if (id == 'left' || id == 'right') {
-        button.onmouseup = button.onmouseleave = function() {
-          if (buttonState[id]) {
-            delete buttonState[id];
-            control.rotation = 0;
-
-            sendControl();
-          }
+    class DragViewApp extends React.Component {
+      constructor(props) {
+        super(props);
+        this.state = {
+          states: {}
         }
       }
+      
+      fiducialCenter(key) {
+        let loc = this.state.states[key];
+        return loc && centerOf(loc.location);
+      }
+            
+      mousePosition(event) {
+        let bounds = ReactDOM.findDOMNode(this.svg).getBoundingClientRect();
+        return {x: event.pageX/bounds.width, y: event.pageY/bounds.height}
+      }
+      
+      nearestFiducial(point) {
+        return Object.keys(this.state.states).reduce((p, k) => {
+          if (distance(this.fiducialCenter(k), point) < distance(this.fiducialCenter(p), point)) {
+            return k;
+          } else {
+            return p;
+          }
+        }, null);
+      }
+      
+      isSvgEvent(event) {
+        return event.target === this.svg;
+      }
+      
+      mouseDown(event) {
+        // if (! this.isSvgEvent(event)) { return; }
+        this.dragging = true;
+        let point = this.mousePosition(event);
+        let candidate = this.nearestFiducial(point);
+        console.log("mouse down with candidate", candidate);
+        this.setState({
+          candidate: candidate,
+          pathInProgress: [this.fiducialCenter(candidate), point]
+        });
+      }
+      
+      mouseUp(event) {
+        // if (! this.isSvgEvent(event)) { return; }
+        if (! this.dragging) { return; }
+        this.dragging = false;
+        let point = this.mousePosition(event);
+        this.setState(state => ({
+          pathInProgress: state.pathInProgress.concat([point])
+        }), () => this.processDrag());
+      }
+      
+      mouseMove(event) {
+        // if (! this.isSvgEvent(event)) { return; }
+        if (! this.dragging) { return; }
+        let point = this.mousePosition(event);
+        this.setState(state => ({
+          pathInProgress: state.pathInProgress.concat([point])
+        }));
+      }
+      
+      mouseLeave(event) {
+        this.mouseUp(event);
+      }
+      
+      processDrag() {        
+        sendPath(this.state.candidate, this.state.pathInProgress);
+        this.setState({
+          candidate: null,
+          pathInProgress: null
+        });
+      }
+      
+      render() {
+        return <svg 
+          id="drag-view" 
+          viewBox="0 0 100 100" 
+          preserveAspectRatio="none"
+          ref={(ref) => this.svg = ref}
+          onMouseDown={this.mouseDown.bind(this)}
+          onMouseUp={this.mouseUp.bind(this)}
+          onMouseMove={this.mouseMove.bind(this)}
+          onMouseLeave={this.mouseLeave.bind(this)} >
+            {Object.keys(this.state.states).map(key =>
+              <ChairBot status={this.state.states[key]} highlight={key == this.state.candidate} key={`chair-${key}`} />
+            )}
+            {this.state.pathInProgress ? <g stroke="#0a0"><PathView path={this.state.pathInProgress} /></g> : ''}
+            <circle cx="20" cy="20" r="4" />
+          </svg>
+      }
+      
+      componentDidMount() {
+        // console.log("Drag View App mounted!");
+        theViewer = this;
+      }
+      
+      handleUpdate(status) {
+        console.log("update!", status);
+        let newStates = {};
+        newStates[status.id] = status;
+        this.setState((state) => ({
+          states: Object.assign({}, state.states, newStates),
+        }));
+      }
+    }
+    $(function() {
+      ReactDOM.render(<DragViewApp />, document.getElementById('root'));
     });
   </script>
 </body>

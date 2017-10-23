@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    #camera-frame {
+      position: absolute;
+      margin: 0;
+      padding: 0;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 100%;
+    }
+        
+    .buttons {
+      width: 200px;
+      text-align: center;
+      position: absolute;
+      top: 10;
+      left: 50%;
+      margin-left: -100px;
+    }
+    
+    .buttons button {
+      width: 60px;
+      height: 30px;
+      
+      background: white;
+      border-radius: 8px;
+    }
+    
+    iframe {
+      border: 0;
+    }
+  </style>
+  <title>WASD control</title>
+  <script src="jquery-3.2.1.js"></script>
+</head>
+<body>
+  <iframe id="camera-frame"></iframe>
+  <script type="text/javascript">
+    var camera = document.getElementById('camera-frame');
+    camera.src = "http://"+document.location.hostname+":8080/view-stream.html"
+  </script>
+  <div class="buttons">
+    <button id="up">Forward</button><br>
+    <button id="left">Left</button>
+    <button id="stop">Stop</button>
+    <button id="right">Right</button><br>
+    <button id="down">Reverse</button>
+  </div>
+  
+  <script type="text/javascript">
+    var buttons = Array.prototype.slice.call(document.getElementsByTagName('button'));
+    
+    var control = {
+      linear: 0,
+      rotation: 0
+    };
+    
+    var diffs = {
+      up: {linear: +25},
+      down: {linear: -25},
+      left: {rotation: -0.5},
+      right: {rotation: +0.5}
+    };
+
+    var pollTimeout;
+
+    function sendControl() {
+      if (pollTimeout) {
+        clearTimeout(pollTimeout);
+      }
+
+      $.post('/wasd?linear='+control.linear+'&rotation='+control.rotation);
+
+      if (control.linear != 0 || control.rotation != 0) {
+        pollTimeout = setTimeout(sendControl, 500);
+      }
+    }
+
+    var buttonState = {};
+
+    buttons.forEach(function(button) {
+      var id = button.id;
+      console.log("setting up button for", id);
+
+      button.onmousedown = function() {
+        buttonState[id] = true;
+        if (id == "stop") {
+          control = {linear: 0, rotation: 0};
+        } else {
+          control.linear += diffs[id].linear || 0;
+          control.rotation = (diffs[id].rotation || 0) * (control.linear || 100);
+        }
+        sendControl();
+      };
+      if (id == 'left' || id == 'right') {
+        button.onmouseup = button.onmouseleave = function() {
+          if (buttonState[id]) {
+            delete buttonState[id];
+            control.rotation = 0;
+
+            sendControl();
+          }
+        }
+      }
+    });
+  </script>
+</body>
