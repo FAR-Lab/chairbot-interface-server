@@ -240,7 +240,6 @@
               <ChairBot status={this.state.states[key]} highlight={key == this.state.candidate} key={`chair-${key}`} />
             )}
             {this.state.pathInProgress ? <g stroke="#0a0"><PathView path={this.state.pathInProgress} /></g> : ''}
-            <circle cx="20" cy="20" r="4" />
           </svg>
       }
       

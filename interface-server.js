@@ -124,7 +124,7 @@ app.ws('/bot-updates', function(ws, req) {
             }),
       frame: msg.size
     };
-    console.log("got updates", updates);
+//    console.log("got updates", updates);
     
     controllers.forEach(function(ws) {
       ws.send(JSON.stringify(updates));

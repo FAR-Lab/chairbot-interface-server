@@ -44,11 +44,11 @@ function dist(x1, y1, x2, y2) {
 }
 
 // mm or mm/sec
-var TOP_SPEED = 300;
-var TOP_ANGULAR_SPEED = 150;
+var TOP_SPEED = 200;
+var TOP_ANGULAR_SPEED = TOP_SPEED/3;
 var BASE_DIAMETER = 241 // 9.5 inches (24 cm?)
 var FIDUCIAL_EDGE_SIZE = 203; // 8 inches (20.3 cm?)
-var ASSUMED_TIMESTEP = 0.1; // seconds
+var ASSUMED_TIMESTEP = 0.5; // seconds
 
 function BotControl(botId, skipConnection) {
   this.location = null;
@@ -72,7 +72,6 @@ BotControl.prototype = {
     this.angle = Math.atan2(frontPt.y - this.centerPt.y, frontPt.x - this.centerPt.x);
     
     this.pixelsPerMm = dist(this.location[0].x, this.location[0].y, this.location[1].x, this.location[1].y) / FIDUCIAL_EDGE_SIZE;
-    console.log("pixelsPermm", this.pixelsPerMm);
     
     this.updateActions();
   },
@@ -119,11 +118,15 @@ BotControl.prototype = {
     this.targetAngle = Math.atan2(this.nextTarget.y - this.centerPt.y, this.nextTarget.x - this.centerPt.x);
 
     var ad = angleDiff(this.angle, this.targetAngle);
-    var angleDistance = ad * BASE_DIAMETER; 
-    if (angleDistance > 0) {
-      this.nextRotation = Math.min(angleDistance, TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP);
+    var absad = Math.abs(ad);
+    var angleDistance = ad * BASE_DIAMETER;
+    var propFactor = absad > 0.2 ? 1 : (0.2-absad)*5;
+    if (ad > 0.2) { // TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP) {
+      this.nextRotation = propFactor * Math.min(angleDistance, TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP);
+    } else if (ad < 0.2) { // if (angleDistance < -TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP) {
+      this.nextRotation = propFactor * Math.max(angleDistance, -TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP);
     } else {
-      this.nextRotation = Math.max(angleDistance, -TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP);
+      this.nextRotation = 0;
     }
     console.log("next rotation is", this.nextRotation);
   },
@@ -134,10 +137,11 @@ BotControl.prototype = {
       return;
     }
     var ad = angleDiff(this.angle, this.targetAngle);
-    if (Math.abs(ad) < 0.05) {
-      this.nextDistance = Math.min(TOP_SPEED * ASSUMED_TIMESTEP, this.distance(this.centerPt, this.nextTarget));
+    if (Math.abs(ad) < 0.2) {
+      var factor = (0.2-Math.abs(ad)) * 5;
+      this.nextDistance = factor * Math.min(TOP_SPEED * ASSUMED_TIMESTEP, this.distance(this.centerPt, this.nextTarget));
     } else {
-      this.nextDistance *= 0.5;
+      this.nextDistance *= 0.95;
     }
     console.log("next distance is", this.nextDistance);
   },
