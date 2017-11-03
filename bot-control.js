@@ -1,3 +1,5 @@
+var WebSocket = require('ws');
+
 const TWO_PI = Math.PI * 2;
 
 function angleDiff(from, to) {
@@ -104,7 +106,7 @@ BotControl.prototype = {
       this.fractionalPath.shift();
     }
     this.pathDistanceRemaining = this.path.reduce((p, c) => (
-      { to: c, distanceSoFar: p.distanceSoFar + this.distance(p.to, c) };
+      { to: c, distanceSoFar: p.distanceSoFar + this.distance(p.to, c) }
     ), { to: this.centerPt, distanceSoFar: 0 }).distanceSoFar;
     this.nextTarget = this.path[0];
     

@@ -45,16 +45,16 @@
   </style>
   <title>Path control</title>
   
-  <script src="https://unpkg.com/react@16/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@16/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/babel-standalone@6.15.0/babel.min.js"></script>
+  <script src="react.development.js"></script>
+  <script src="react-dom.development.js"></script>
+  <script src="babel.min.js"></script>
   <script src="jquery-3.2.1.js"></script>
   </head>
 <body>
   <iframe id="camera-frame"></iframe>
   <script type="text/javascript">
     var camera = document.getElementById('camera-frame');
-    camera.src = "http://"+document.location.hostname+":8080/view-stream.html"
+    camera.src = "/view-stream.html"
   </script>
   <div class="buttons">
     <p>Drag on the screen, starting from a chairbot, to request a path.</p>

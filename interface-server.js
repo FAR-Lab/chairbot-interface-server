@@ -8,14 +8,16 @@
 var express = require('express'),
     app = express();
 
-var expressWs = require('express-ws')(app);
+var expressWs = require('express-ws')(app),
     bodyParser = require('body-parser'),
     fs = require('fs'),
+    webcam = require('webcam-stream'),
     WebSocket = require('ws'),
     BotControl = require('./bot-control');
 
-// Child Process
-var cv = null;
+// start webcam stuff
+var webcamClientServer = webcam.startWebClientServer();
+var webcamStreamServer = webcam.startStreamProxyServer(webcamClientServer);
 
 // Express app setup
 // app.use(function(req, res, next) {
@@ -27,6 +29,7 @@ var cv = null;
 //   });
 //   next();
 // });
+app.use(webcam.middleware);
 app.use(bodyParser.json());
 app.use(express.static('static'));
 app.set('port', (process.env.PORT || 5000));
@@ -43,6 +46,10 @@ app.post('/wasd', function(req, res) {
 
 app.get('/wasd', function (req, res) {
   res.sendFile('pages/wasd.html', {root: __dirname});
+});
+
+app.get('/view-stream.html', function (req, res) {
+  res.sendFile('pages/view-stream.html', {root: __dirname});
 });
 
 app.get('/', function (req, res) {
@@ -131,49 +138,6 @@ app.ws('/bot-updates', function(ws, req) {
     });
   });
 });
-
-
-// Connect to neato websocket
-// const ws = new WebSocket("ws://"+(process.env.NEATO_HOST || "neato-04.local:3000"));
-// ws.on('error', function() {
-//   console.log("NEATO socket errored out!");
-// });
-// ws.on('open', function() {
-//   ws.on('message', function(message) {
-//     if (message.startsWith('pong')) {
-//       console.log("successfully connected!");
-//     }
-//   });
-//   ws.send('ping');
-// });
-//
-// var commandTimeout;
-//
-// function sendCommand() {
-//   if (commandTimeout) {
-//     clearTimeout(commandTimeout);
-//   }
-//
-//   var out = {
-//     speed: Math.abs(wasdInfo.linear)
-//   }
-//   var differential = wasdInfo.rotation;
-//   if (differential != 0 && out.speed == 0) {
-//     out.speed = 50;
-//   }
-//
-//   var distance = Math.sign(wasdInfo.linear) * (out.speed * 0.6);
-//
-//   out.left = distance + (differential * 0.6);
-//   out.right = distance - (differential * 0.6);
-//
-//   ws.send(JSON.stringify(out));
-//
-//
-//   if (out.speed > 0) {
-//     commandTimeout = setTimeout(sendCommand, 500);
-//   }
-// }
 
 // Start server
 app.listen(app.get('port'), function() {
