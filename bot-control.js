@@ -85,7 +85,9 @@ BotControl.prototype = {
     this.updateActions();
     console.log("path is now", this.path);
   },
-    
+  
+  
+  
   distance(from, to) {
     if (! to) {
       to = from;
@@ -101,6 +103,9 @@ BotControl.prototype = {
       this.path.shift();
       this.fractionalPath.shift();
     }
+    this.pathDistanceRemaining = this.path.reduce((p, c) => (
+      { to: c, distanceSoFar: p.distanceSoFar + this.distance(p.to, c) };
+    ), { to: this.centerPt, distanceSoFar: 0 }).distanceSoFar;
     this.nextTarget = this.path[0];
     
     this.updateRotation();
@@ -111,6 +116,7 @@ BotControl.prototype = {
   
   // rotation is radians / sec
   updateRotation() {
+    this.lastRotation = this.nextRotation;
     if (! this.nextTarget) {
       this.nextRotation = 0;
       return;
@@ -132,6 +138,7 @@ BotControl.prototype = {
   },
   
   updateSpeed() {
+    this.lastDistance = this.nextDistance;
     if (! this.nextTarget) {
       this.nextDistance = 0;
       return;
@@ -139,7 +146,7 @@ BotControl.prototype = {
     var ad = angleDiff(this.angle, this.targetAngle);
     if (Math.abs(ad) < 0.2) {
       var factor = (0.2-Math.abs(ad)) * 5;
-      this.nextDistance = factor * Math.min(TOP_SPEED * ASSUMED_TIMESTEP, this.distance(this.centerPt, this.nextTarget));
+      this.nextDistance = factor * Math.min(TOP_SPEED * ASSUMED_TIMESTEP, Math.max(1, this.pathDistanceRemaining));
     } else {
       this.nextDistance *= 0.95;
     }
@@ -163,6 +170,18 @@ BotControl.prototype = {
       var right = this.nextDistance || 0;
       left += this.nextRotation || 0;
       right -= this.nextRotation || 0;
+
+      if (this.nextDistance > 0) { // if we're not rotating in place
+        // don't allow wheel reversal
+        if (left < 0) {
+          left = 0;
+          right += -left;
+        }
+        if (right < 0) {
+          right = 0;
+          left += -right;
+        }
+      }
 
       return {
         left: left,
