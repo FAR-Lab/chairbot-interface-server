@@ -15,20 +15,11 @@ var expressWs = require('express-ws')(app),
     WebSocket = require('ws'),
     BotControl = require('./bot-control');
 
-// start webcam stuff
+// start webcam proxy stuff
 var webcamClientServer = webcam.startWebClientServer();
 var webcamStreamServer = webcam.startStreamProxyServer(webcamClientServer);
 
 // Express app setup
-// app.use(function(req, res, next) {
-//   req.socket.on('error', function() {
-//     console.log("error on socket....disconnected?");
-//   });
-//   res.socket.on('error', function() {
-//     console.log("error on socket....disconnected?");
-//   });
-//   next();
-// });
 app.use(webcam.middleware);
 app.use(bodyParser.json());
 app.use(express.static('static'));
@@ -54,18 +45,6 @@ app.get('/view-stream.html', function (req, res) {
 
 app.get('/', function (req, res) {
   res.sendFile('pages/main.html', {root: __dirname});
-});
-
-app.post('/stop', function(req, res) {
-    console.log('Neato stop request received. ');
-
-    if(cv !== null) {
-        process.kill(cv.pid + 2);
-        res.send({ status: 'SUCCESS' });
-    } else {
-      res.send({ status: 'FAILURE' });
-      console.log('could not kill CV app');
-    }
 });
 
 var controllers = [];
