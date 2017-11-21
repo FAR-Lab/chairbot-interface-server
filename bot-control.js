@@ -48,8 +48,9 @@ function dist(x1, y1, x2, y2) {
 // mm or mm/sec
 var TOP_SPEED = 200;
 var TOP_ANGULAR_SPEED = TOP_SPEED/3;
-var BASE_DIAMETER = 241 // 9.5 inches (24 cm?)
-var FIDUCIAL_EDGE_SIZE = 203; // 8 inches (20.3 cm?)
+var BASE_DIAMETER = 241; // 9.5 inches (24 cm?)
+var FIDUCIAL_EDGE_SIZE = 127; // 5 inches (12.7 cm?)
+var FIDUCIAL_HEIGHT = 1530; // 5 feet
 var ASSUMED_TIMESTEP = 0.5; // seconds
 
 function BotControl(botId, skipConnection) {
@@ -67,6 +68,7 @@ BotControl.prototype = {
   noteLocation(location, frameSize) {
     this.frameSize = frameSize;
     // [{x: x1, y: y1}, .. {x: x4, y: y4}] for four corners of bot fiducial
+      
     this.fractionalLocation = location;
     this.location = location.map(function(pt) { return { x: pt.x*frameSize.width, y: pt.y*frameSize.height }; }); 
     this.centerPt = centerOf(this.location);
