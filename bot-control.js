@@ -85,10 +85,30 @@ BotControl.prototype = {
     this.path = path.map(function(pt) { return { x: pt.x*frameSize.width, y: pt.y*frameSize.height }; }); 
     this.pathid = id;
     this.updateActions();
+    
     console.log("path is now", this.path);
   },
+
+  forcedTimeLeft() { // millis
+    if (! this.forcedMotion) {
+      return 0;
+    } else {
+      return this.forcedMotion.until - new Date();
+    }
+  },
   
-  
+  force(fwd, turn) {
+    this.path = [];
+    this.fractionalPath = [];
+    this.forcedMotion = {
+      forward: fwd,
+      turn: turn,
+      until: Date.now() + ASSUMED_TIMESTEP * 1000,
+    }
+    delete this.pathid;
+
+    this.updateActions();
+  },
   
   distance(from, to) {
     if (! to) {
@@ -113,12 +133,20 @@ BotControl.prototype = {
     this.updateRotation();
     this.updateSpeed();
     
+    if (this.forcedMotion && this.forcedTimeLeft <= 0) { // no time left
+      delete this.forcedMotion;
+    }
+    
     this.sendAction();
   },
   
   // rotation is radians / sec
   updateRotation() {
     this.lastRotation = this.nextRotation;
+    if (this.forcedMotion) {
+      this.nextRotation = this.forcedMotion.turn * TOP_ANGULAR_SPEED * (this.forcedTimeLeft() / 1000);
+      return;
+    }
     if (! this.nextTarget) {
       this.nextRotation = 0;
       return;
@@ -141,6 +169,10 @@ BotControl.prototype = {
   
   updateSpeed() {
     this.lastDistance = this.nextDistance;
+    if (this.forcedMotion) {
+      this.nextDistance = this.forcedMotion.forward * TOP_SPEED * (this.forcedTimeLeft() / 1000);
+      return;
+    }
     if (! this.nextTarget) {
       this.nextDistance = 0;
       return;
@@ -167,7 +199,7 @@ BotControl.prototype = {
   },
   
   nextAction() {
-    if (this.nextTarget) {
+    if (this.nextTarget || this.forcedMotion) {
       var left = this.nextDistance || 0;
       var right = this.nextDistance || 0;
       left += this.nextRotation || 0;
@@ -198,7 +230,7 @@ BotControl.prototype = {
   sendAction() {
     var action = this.nextAction();
     if (action) {
-      this.sendCommand(this.nextAction());      
+      this.sendCommand(action);      
     }
   }
 }

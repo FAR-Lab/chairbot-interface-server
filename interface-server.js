@@ -65,6 +65,10 @@ app.ws('/web-controller', function(ws, req) {
         console.log("got path!", msg);
         var control = BotControl.for(msg.bot);
         control.requestPath(msg.path, msg.pathId);
+      } else if (msg.action == "requestForced") {
+        console.log("got forced!", msg);
+        var control = BotControl.for(msg.bot);
+        control.force(msg.forward, msg.turn);        
       }
     } catch (e) {
       console.error("Unable to request path", msg, e);

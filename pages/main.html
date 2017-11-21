@@ -23,6 +23,7 @@
     }
         
     .buttons {
+      z-index: 1000;
       width: 250px;
       text-align: center;
       position: absolute;
@@ -39,8 +40,15 @@
       width: 60px;
       height: 30px;
       
-      background: white;
+      background: blue;
+      border: 0;
       border-radius: 8px;
+      opacity: 1.0;
+      color: white;
+      margin: 2px;
+    }
+    .buttons button:active, .buttons button.active {
+      background: #abcdef;
     }
     
     svg text::selection {
@@ -96,6 +104,16 @@
         bot: fiducialKey,
         pathId: pid,
         path: path
+      }));
+    }
+    
+    function sendForce(fiducialKey, forcedForward, forcedTurn) {
+      console.log("requesting force", fiducialKey, forcedForward, forcedTurn);
+      socket.send(JSON.stringify({
+        action: "requestForced",
+        bot: fiducialKey,
+        forward: forcedForward,
+        turn: forcedTurn
       }));
     }
 
@@ -172,8 +190,13 @@
       constructor(props) {
         super(props);
         this.state = {
-          states: {}
+          states: {},
+          restrictedFiducialId: restrictedFiducialId,
+          forcedForward: 0,
+          forcedTurn: 0
         }
+        
+        this.forcedTimer = setInterval(() => this.checkAndSendForce(), 250);
       }
       
       fiducialCenter(key) {
@@ -188,8 +211,8 @@
       
       nearestFiducial(point) {
         let keys = Object.keys(this.state.states)
-        if (restrictedFiducialId !== null) {
-          keys = keys.filter(k => k == restrictedFiducialId);
+        if (this.state.restrictedFiducialId !== null) {
+          keys = keys.filter(k => k == this.state.restrictedFiducialId);
         }
         return keys.reduce((p, k) => {
           if (distance(this.fiducialCenter(k), point) < distance(this.fiducialCenter(p), point)) {
@@ -239,6 +262,100 @@
         this.mouseUp(event);
       }
       
+      keyDown(event) {
+        // console.log("DOWN", event.key);
+        this.handleKeyDown(event.key);
+      }
+      
+      keyUp(event) {
+        // console.log("UP", event.key);
+        this.handleKeyUp(event.key);
+      }
+      
+      handleKeyDown(key) {
+        if (key >= '0' && key <= '9') {
+          this.setState({
+            restrictedFiducialId: Number(key)
+          });
+        } else if (key == '-') {
+          this.setState({
+            restrictedFiducialId: null
+          });
+        } else {
+          this.setState(state => {          
+            switch(key) {
+            case 'w':
+              console.log('down w');
+              return {
+                forcedForward: 1 // (state.forcedForward || 0) + 1
+              };
+                    
+            case 'a':
+              console.log('down a');
+              return {
+                forcedTurn: -1 // state.forcedTurn - 1
+              };
+          
+            case 's':
+              console.log('down s');
+              return {
+                forcedForward: -1 // (state.forcedForward > 0 ? 0 : (state.forcedForward || 0) - 1)
+              };
+            
+            case 'd':
+              console.log('down d');
+              return {
+                forcedTurn: 1 //state.forcedTurn + 1
+              };
+            
+            case ' ':
+              console.log('down <space>');
+              return {
+                forcedForward: 0,
+                forcedTurn: 0
+              };
+            }
+          }, () => this.sendForce());
+        }
+      }
+      
+      handleKeyUp(key) {
+        this.setState(state => {
+          switch(key) {
+          case 'w':
+            console.log('up w');
+            return {
+              forcedForward: 0
+            }
+          case 'a':
+            console.log('up a');
+            return {
+              forcedTurn: 0
+            }
+          case 's':
+            console.log('up s');
+            return {
+              forcedForward: 0
+            }
+          case 'd':
+            console.log('up d');
+            return {
+              forcedTurn: 0
+            }
+          }
+        }, () => this.sendForce());
+      }
+      
+      checkAndSendForce() {
+        if (this.state.forcedTurn || this.state.forcedForward) {
+          this.sendForce();
+        }
+      }
+      
+      sendForce() {
+        sendForce(this.state.restrictedFiducialId, this.state.forcedForward, this.state.forcedTurn);
+      }
+      
       processDrag() {        
         sendPath(this.state.candidate, this.state.pathInProgress);
         this.setState({
@@ -248,9 +365,41 @@
       }
       
       render() {
-        return <div>
+        return <div tabIndex="0"
+            onKeyDown={this.keyDown.bind(this)}
+            onKeyUp={this.keyUp.bind(this)} >
           <div className="buttons">
-            <p>Drag on the screen, starting from a chairbot, to request a path. <br /><br /><strong>{restrictedFiducialId ? `You control chairbot #${restrictedFiducialId}.` : "You can control any chairbot."}</strong></p>
+            <p>
+              Drag on the screen, starting from a chairbot, to request a path. <br /><br /><strong>{this.state.restrictedFiducialId ? `You control chairbot #${this.state.restrictedFiducialId}.` : "You can control any chairbot."}</strong>
+              {this.state.restrictedFiducialId ? <span>
+                <br />
+                Or use these keys:<br />
+                <button ref={(w) => this.arrowUp = w}
+                        className={this.state.forcedForward > 0 ? "active" : ""}
+                        onMouseDown={() => this.handleKeyDown('w')}
+                        onMouseUp={() => this.handleKeyUp('w')}
+                        onMouseLeave={() => this.handleKeyUp('w')}>w</button><br />
+                <button ref={(a) => this.arrowLeft = a} 
+                        className={this.state.forcedTurn < 0 ? "active" : ""}
+                        onMouseDown={() => this.handleKeyDown('a')}
+                        onMouseUp={() => this.handleKeyUp('a')}
+                        onMouseLeave={() => this.handleKeyUp('a')}>a</button>
+                <button ref={(s) => this.arrowDown = s} 
+                        className={this.state.forcedForward < 0 ? "active" : ""}
+                        onMouseDown={() => this.handleKeyDown('s')}
+                        onMouseUp={() => this.handleKeyUp('s')}
+                        onMouseLeave={() => this.handleKeyUp('s')}>s</button>
+                <button ref={(d) => this.arrowRight = d} 
+                        className={this.state.forcedTurn > 0 ? "active" : ""}
+                        onMouseDown={() => this.handleKeyDown('d')}
+                        onMouseUp={() => this.handleKeyUp('d')}
+                        onMouseLeave={() => this.handleKeyUp('d')}>d</button><br />
+                <button ref={(stop) => this.stopButton = stop}
+                        onMouseDown={() => this.handleKeyDown(' ')}
+                        onMouseUp={() => this.handleKeyUp(' ')}
+                        onMouseLeave={() => this.handleKeyUp(' ')}>stop</button>
+              </span> : ''}
+            </p>
           </div>
           <svg 
             id="drag-view" 
@@ -262,7 +411,7 @@
             onMouseMove={this.mouseMove.bind(this)}
             onMouseLeave={this.mouseLeave.bind(this)} >
               {Object.keys(this.state.states).map(key =>
-                <ChairBot status={this.state.states[key]} highlight={key == this.state.candidate} key={`chair-${key}`} isDraggable={restrictedFiducialId === null || key == restrictedFiducialId /* == intentional to allow type conversion */} />
+                <ChairBot status={this.state.states[key]} highlight={key == this.state.candidate} key={`chair-${key}`} isDraggable={this.state.restrictedFiducialId === null || key == this.state.restrictedFiducialId /* == intentional to allow type conversion */} />
               )}
               {this.state.pathInProgress ? <g stroke="#0a0"><PathView path={this.state.pathInProgress} /></g> : ''}
           </svg>
