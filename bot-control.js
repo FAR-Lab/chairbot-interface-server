@@ -53,6 +53,8 @@ var FIDUCIAL_EDGE_SIZE = 127; // 5 inches (12.7 cm?)
 var FIDUCIAL_HEIGHT = 1530; // 5 feet
 var ASSUMED_TIMESTEP = 0.5; // seconds
 
+var RAD_ERR = 1;
+
 function BotControl(botId, skipConnection) {
   this.location = null;
   this.fractionalLocation = null;
@@ -86,6 +88,7 @@ BotControl.prototype = {
     this.fractionalPath = path;
     this.path = path.map(function(pt) { return { x: pt.x*frameSize.width, y: pt.y*frameSize.height }; }); 
     this.pathid = id;
+    delete this.forcedMotion;
     this.updateActions();
     
     console.log("path is now", this.path);
@@ -158,10 +161,10 @@ BotControl.prototype = {
     var ad = angleDiff(this.angle, this.targetAngle);
     var absad = Math.abs(ad);
     var angleDistance = ad * BASE_DIAMETER;
-    var propFactor = absad > 0.2 ? 1 : (0.2-absad)*5;
-    if (ad > 0.2) { // TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP) {
+    var propFactor = absad > RAD_ERR ? 1 : (RAD_ERR-absad)*5;
+    if (ad > RAD_ERR) { // TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP) {
       this.nextRotation = propFactor * Math.min(angleDistance, TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP);
-    } else if (ad < 0.2) { // if (angleDistance < -TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP) {
+    } else if (ad < RAD_ERR) { // if (angleDistance < -TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP) {
       this.nextRotation = propFactor * Math.max(angleDistance, -TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP);
     } else {
       this.nextRotation = 0;
@@ -180,11 +183,11 @@ BotControl.prototype = {
       return;
     }
     var ad = angleDiff(this.angle, this.targetAngle);
-    if (Math.abs(ad) < 0.2) {
-      var factor = (0.2-Math.abs(ad)) * 5;
+    if (Math.abs(ad) < RAD_ERR) {
+      var factor = (RAD_ERR-Math.abs(ad)) * 5;
       this.nextDistance = factor * Math.min(TOP_SPEED * ASSUMED_TIMESTEP, Math.max(1, this.pathDistanceRemaining));
     } else {
-      this.nextDistance *= 0.95;
+      this.nextDistance *= 0.5;
     }
     console.log("next distance is", this.nextDistance);
   },
@@ -207,6 +210,8 @@ BotControl.prototype = {
       left += this.nextRotation || 0;
       right -= this.nextRotation || 0;
 
+      var isStopped = left == 0 && right == 0;
+	
       if (this.nextDistance > 0) { // if we're not rotating in place
         // don't allow wheel reversal
         if (left < 0) {
@@ -220,10 +225,11 @@ BotControl.prototype = {
       }
 
       return {
-        left: left,
-        right: right,
-        speed: TOP_SPEED
+        left: isStopped && ! this.isStopped ? -0.1 : -right,
+        right: isStopped && ! this.isStopped ? -0.1 : -left,
+        speed: isStopped ? 0 : TOP_SPEED
       }
+      this.isStopped = isStopped;
     } else {
       return null;
     }
