@@ -282,68 +282,79 @@
             restrictedFiducialId: null
           });
         } else {
-          this.setState(state => {          
-            switch(key) {
+	  let send = false;
+          this.setState(state => {
+          switch(key) {
             case 'w':
               console.log('down w');
+	      send = true;
               return {
                 forcedForward: 1 // (state.forcedForward || 0) + 1
               };
                     
             case 'a':
               console.log('down a');
+	      send = true;
               return {
                 forcedTurn: -1 // state.forcedTurn - 1
               };
           
             case 's':
               console.log('down s');
+	      send = true;
               return {
                 forcedForward: -1 // (state.forcedForward > 0 ? 0 : (state.forcedForward || 0) - 1)
               };
             
             case 'd':
               console.log('down d');
+	      send = true;
               return {
                 forcedTurn: 1 //state.forcedTurn + 1
               };
             
             case ' ':
               console.log('down <space>');
+	      send = true;
               return {
                 forcedForward: 0,
                 forcedTurn: 0
               };
             }
-          }, () => this.sendForce());
+          }, () => send && this.sendForce());
         }
       }
       
       handleKeyUp(key) {
+	let send = false;
         this.setState(state => {
           switch(key) {
           case 'w':
             console.log('up w');
+            send = true;
             return {
               forcedForward: 0
             }
           case 'a':
             console.log('up a');
+            send = true;
             return {
               forcedTurn: 0
             }
           case 's':
             console.log('up s');
+            send = true;
             return {
               forcedForward: 0
             }
           case 'd':
             console.log('up d');
+            send = true;
             return {
               forcedTurn: 0
             }
           }
-        }, () => this.sendForce());
+        }, () => send && this.sendForce());
       }
       
       checkAndSendForce() {

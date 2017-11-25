@@ -46,8 +46,8 @@ function dist(x1, y1, x2, y2) {
 }
 
 // mm or mm/sec
-var TOP_SPEED = 200;
-var TOP_ANGULAR_SPEED = TOP_SPEED/3;
+var TOP_SPEED = 50;
+var TOP_ANGULAR_SPEED = TOP_SPEED/4;
 var BASE_DIAMETER = 241; // 9.5 inches (24 cm?)
 var FIDUCIAL_EDGE_SIZE = 127; // 5 inches (12.7 cm?)
 var FIDUCIAL_HEIGHT = 1530; // 5 feet
@@ -161,7 +161,7 @@ BotControl.prototype = {
     var ad = angleDiff(this.angle, this.targetAngle);
     var absad = Math.abs(ad);
     var angleDistance = ad * BASE_DIAMETER;
-    var propFactor = absad > RAD_ERR ? 1 : (RAD_ERR-absad)*5;
+      var propFactor = absad > RAD_ERR ? 1 : (RAD_ERR-absad) * (1/RAD_ERR);
     if (ad > RAD_ERR) { // TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP) {
       this.nextRotation = propFactor * Math.min(angleDistance, TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP);
     } else if (ad < RAD_ERR) { // if (angleDistance < -TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP) {
@@ -184,7 +184,7 @@ BotControl.prototype = {
     }
     var ad = angleDiff(this.angle, this.targetAngle);
     if (Math.abs(ad) < RAD_ERR) {
-      var factor = (RAD_ERR-Math.abs(ad)) * 5;
+	var factor = (RAD_ERR-Math.abs(ad)) * (1/RAD_ERR);
       this.nextDistance = factor * Math.min(TOP_SPEED * ASSUMED_TIMESTEP, Math.max(1, this.pathDistanceRemaining));
     } else {
       this.nextDistance *= 0.5;
