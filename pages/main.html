@@ -282,40 +282,40 @@
             restrictedFiducialId: null
           });
         } else {
-	  let send = false;
+          let send = false;
           this.setState(state => {
           switch(key) {
             case 'w':
               console.log('down w');
-	      send = true;
+              send = true;
               return {
                 forcedForward: 1 // (state.forcedForward || 0) + 1
               };
                     
             case 'a':
               console.log('down a');
-	      send = true;
+              send = true;
               return {
                 forcedTurn: -1 // state.forcedTurn - 1
               };
           
             case 's':
               console.log('down s');
-	      send = true;
+              send = true;
               return {
                 forcedForward: -1 // (state.forcedForward > 0 ? 0 : (state.forcedForward || 0) - 1)
               };
             
             case 'd':
               console.log('down d');
-	      send = true;
+              send = true;
               return {
                 forcedTurn: 1 //state.forcedTurn + 1
               };
             
             case ' ':
               console.log('down <space>');
-	      send = true;
+              send = true;
               return {
                 forcedForward: 0,
                 forcedTurn: 0
@@ -326,7 +326,7 @@
       }
       
       handleKeyUp(key) {
-	let send = false;
+        let send = false;
         this.setState(state => {
           switch(key) {
           case 'w':

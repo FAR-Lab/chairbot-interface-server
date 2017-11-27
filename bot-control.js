@@ -49,8 +49,7 @@ function dist(x1, y1, x2, y2) {
 var TOP_SPEED = 50;
 var TOP_ANGULAR_SPEED = TOP_SPEED/4;
 var BASE_DIAMETER = 241; // 9.5 inches (24 cm?)
-var FIDUCIAL_EDGE_SIZE = 127; // 5 inches (12.7 cm?)
-var FIDUCIAL_HEIGHT = 1530; // 5 feet
+var FIDUCIAL_EDGE_SIZE = 201; // ~< 8 inches (12.7 cm?)
 var ASSUMED_TIMESTEP = 0.5; // seconds
 
 var RAD_ERR = 1;
@@ -161,13 +160,16 @@ BotControl.prototype = {
     var ad = angleDiff(this.angle, this.targetAngle);
     var absad = Math.abs(ad);
     var angleDistance = ad * BASE_DIAMETER;
-      var propFactor = absad > RAD_ERR ? 1 : (RAD_ERR-absad) * (1/RAD_ERR);
+    var propFactor = absad > RAD_ERR ? 1 : (RAD_ERR-absad) * (1/RAD_ERR);
     if (ad > RAD_ERR) { // TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP) {
       this.nextRotation = propFactor * Math.min(angleDistance, TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP);
     } else if (ad < RAD_ERR) { // if (angleDistance < -TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP) {
       this.nextRotation = propFactor * Math.max(angleDistance, -TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP);
     } else {
       this.nextRotation = 0;
+    }
+    if (this.nextRotation != 0 && Math.abs(this.nextRotation) < 1) {
+      this.nextRotation = Math.sign(this.nextRotation);
     }
     console.log("next rotation is", this.nextRotation);
   },
@@ -184,10 +186,13 @@ BotControl.prototype = {
     }
     var ad = angleDiff(this.angle, this.targetAngle);
     if (Math.abs(ad) < RAD_ERR) {
-	var factor = (RAD_ERR-Math.abs(ad)) * (1/RAD_ERR);
+      var factor = (RAD_ERR-Math.abs(ad)) * (1/RAD_ERR);
       this.nextDistance = factor * Math.min(TOP_SPEED * ASSUMED_TIMESTEP, Math.max(1, this.pathDistanceRemaining));
     } else {
       this.nextDistance *= 0.5;
+    }
+    if (this.nextDistance > 0 && this.nextDistance < 1) {
+      this.nextDistance = 1;
     }
     console.log("next distance is", this.nextDistance);
   },
@@ -225,8 +230,8 @@ BotControl.prototype = {
       }
 
       return {
-        left: isStopped && ! this.isStopped ? -0.1 : -right,
-        right: isStopped && ! this.isStopped ? -0.1 : -left,
+        left: isStopped && ! this.isStopped ? -1 : -right,
+        right: isStopped && ! this.isStopped ? -1 : -left,
         speed: isStopped ? 0 : TOP_SPEED
       }
       this.isStopped = isStopped;
