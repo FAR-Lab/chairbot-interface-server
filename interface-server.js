@@ -12,6 +12,7 @@ var expressWs = require('express-ws')(app),
     bodyParser = require('body-parser'),
     fs = require('fs'),
     webcam = require('webcam-stream'),
+    logger = require('json-logger'),
     WebSocket = require('ws'),
     BotControl = require('./bot-control');
 
@@ -47,8 +48,9 @@ app.get('/', function (req, res) {
   res.sendFile('pages/main.html', {root: __dirname});
 });
 
-var controllers = [];
+let controlLog = logger.named('controller');
 
+var controllers = [];
 app.ws('/web-controller', function(ws, req) {
   console.log('paths socket connected');
   controllers.push(ws);
@@ -60,15 +62,16 @@ app.ws('/web-controller', function(ws, req) {
       console.error("Unable to parse path message", msgString, e);
       return;
     }
+    controlLog.save(msg);
     try {
       if (msg.action == "requestPath") {
         console.log("got path!", msg);
         var control = BotControl.for(msg.bot);
-        control.requestPath(msg.path, msg.pathId);
+        control.requestPath(msg.path, msg.pathId, msg.topSpeed);
       } else if (msg.action == "requestForced") {
         console.log("got forced!", msg);
         var control = BotControl.for(msg.bot);
-        control.force(msg.forward, msg.turn);        
+        control.force(msg.forward, msg.turn, msg.topSpeed);        
       }
     } catch (e) {
       console.error("Unable to request path", msg, e);
@@ -83,6 +86,8 @@ app.ws('/web-controller', function(ws, req) {
   })
 });
 
+let updateLog = logger.named('update');
+
 app.ws('/bot-updates', function(ws, req) {
   console.log('updates source connected');
   ws.on('message', function(msgString) {
@@ -94,6 +99,7 @@ app.ws('/bot-updates', function(ws, req) {
       console.error("Unable to parse update message", msgString, e);
       return;
     }
+    updateLog.save(msg);
     try {
       msg.updates.forEach(function(update) {
         var control = BotControl.for(update.id);
@@ -109,7 +115,8 @@ app.ws('/bot-updates', function(ws, req) {
                 id: bot.botId,
                 location: bot.fractionalLocation,
                 path: bot.fractionalPath,
-                nextAction: bot.nextAction()
+                nextAction: bot.nextAction(),
+                // topSpeed: bot.topSpeed
               };
             }),
       frame: msg.size

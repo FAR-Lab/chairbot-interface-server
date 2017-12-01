@@ -45,12 +45,15 @@ function dist(x1, y1, x2, y2) {
   return Math.sqrt(Math.pow(x2-x1, 2) + Math.pow(y2-y1, 2));
 }
 
+var USE_GUESSED_UPDATES = true;
+
 // mm or mm/sec
 var TOP_SPEED = 50;
 var TOP_ANGULAR_SPEED = TOP_SPEED/4;
 var BASE_DIAMETER = 241; // 9.5 inches (24 cm?)
-var FIDUCIAL_EDGE_SIZE = 201; // ~< 8 inches (12.7 cm?)
+var FIDUCIAL_EDGE_SIZE = 190; // ~< 8 inches (12.7 cm?)
 var ASSUMED_TIMESTEP = 0.5; // seconds
+var MISSED_UPDATE_DELAY = 250;
 
 var RAD_ERR = 1;
 
@@ -58,6 +61,8 @@ function BotControl(botId, skipConnection) {
   this.location = null;
   this.fractionalLocation = null;
   this.path = [];
+  this.topSpeed = TOP_SPEED;
+  this.topAngularSpeed = TOP_ANGULAR_SPEED;
   
   this.botId = botId;
   
@@ -67,6 +72,10 @@ function BotControl(botId, skipConnection) {
 }
 BotControl.prototype = {
   noteLocation(location, frameSize) {
+    if (USE_GUESSED_UPDATES && this.missedUpdateTimer) {
+      clearTimeout(this.missedUpdateTimer);
+      delete this.missedUpdateTimer;
+    }
     this.frameSize = frameSize;
     // [{x: x1, y: y1}, .. {x: x4, y: y4}] for four corners of bot fiducial
       
@@ -79,14 +88,44 @@ BotControl.prototype = {
     this.pixelsPerMm = dist(this.location[0].x, this.location[0].y, this.location[1].x, this.location[1].y) / FIDUCIAL_EDGE_SIZE;
     
     this.updateActions();
+    if (USE_GUESSED_UPDATES) {
+      this.missedUpdateTimer = setTimeout(this.missedUpdate.bind(this), MISSED_UPDATE_DELAY);
+    }
   },
   
-  requestPath(path, id) {
+  missedUpdate() {
+    // pretend based on motion?
+    var frameSize = this.frameSize
+    var location = this.location;
+    var centerPt = centerOf(location);
+    var amountCompleted = (MISSED_UPDATE_DELAY / 1000) / ASSUMED_TIMESTEP;
+
+    var d = amountCompleted * this.nextDistance;
+    var r = amountCompleted * this.nextRotation / BASE_DIAMETER; // back to angle!
+    for (var i = 0; i < 10; i++) { // discrete faking of distance + rotation into offsets.
+      var dx = d/10 * Math.cos(r/10);
+      var dy = d/10 * Math.sin(r/10);
+      location = location.map(function(pt) { 
+        // rotate around center
+        var rx = (pt.x-centerPt.x) * Math.cos(r/10) - (pt.y-centerPt.y) * Math.sin(r/10);
+        var ry = (pt.x-centerPt.x) * Math.sin(r/10) + (pt.y-centerPt.y) * Math.cos(r/10);
+        return { x: centerPt.x + dx + rx, y: centerPt.y + dy + ry }; 
+      });
+      centerPt = centerOf(location);
+    }
+    var fractionalLocation = location.map(function(pt) { return { x: pt.x / frameSize.width, y: pt.y / frameSize.height }; });
+    
+    this.noteLocation(fractionalLocation, this.frameSize);
+    console.log("guessed update!", fractionalLocation);
+  },
+  
+  requestPath(path, id, topSpeed) {
     let frameSize = this.frameSize;
     console.log("path requested for bot", this.botId, "path is", path);
     this.fractionalPath = path;
     this.path = path.map(function(pt) { return { x: pt.x*frameSize.width, y: pt.y*frameSize.height }; }); 
     this.pathid = id;
+    this.setTopSpeed(topSpeed);
     delete this.forcedMotion;
     this.updateActions();
     
@@ -101,7 +140,7 @@ BotControl.prototype = {
     }
   },
   
-  force(fwd, turn) {
+  force(fwd, turn, topSpeed) {
     this.path = [];
     this.fractionalPath = [];
     this.forcedMotion = {
@@ -109,9 +148,15 @@ BotControl.prototype = {
       turn: turn,
       until: Date.now() + ASSUMED_TIMESTEP * 1000,
     }
+    this.setTopSpeed(topSpeed);
     delete this.pathid;
 
     this.updateActions();
+  },
+  
+  setTopSpeed(topSpeed) {
+    this.topSpeed = topSpeed;
+    this.topAngularSpeed = topSpeed / 4;
   },
   
   distance(from, to) {
@@ -148,7 +193,7 @@ BotControl.prototype = {
   updateRotation() {
     this.lastRotation = this.nextRotation;
     if (this.forcedMotion) {
-      this.nextRotation = this.forcedMotion.turn * TOP_ANGULAR_SPEED * (this.forcedTimeLeft() / 1000);
+      this.nextRotation = this.forcedMotion.turn * this.topAngularSpeed * (this.forcedTimeLeft() / 1000);
       return;
     }
     if (! this.nextTarget) {
@@ -162,9 +207,9 @@ BotControl.prototype = {
     var angleDistance = ad * BASE_DIAMETER;
     var propFactor = absad > RAD_ERR ? 1 : (RAD_ERR-absad) * (1/RAD_ERR);
     if (ad > RAD_ERR) { // TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP) {
-      this.nextRotation = propFactor * Math.min(angleDistance, TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP);
+      this.nextRotation = propFactor * Math.min(angleDistance, this.topAngularSpeed * ASSUMED_TIMESTEP);
     } else if (ad < RAD_ERR) { // if (angleDistance < -TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP) {
-      this.nextRotation = propFactor * Math.max(angleDistance, -TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP);
+      this.nextRotation = propFactor * Math.max(angleDistance, -this.topAngularSpeed * ASSUMED_TIMESTEP);
     } else {
       this.nextRotation = 0;
     }
@@ -177,7 +222,7 @@ BotControl.prototype = {
   updateSpeed() {
     this.lastDistance = this.nextDistance;
     if (this.forcedMotion) {
-      this.nextDistance = this.forcedMotion.forward * TOP_SPEED * (this.forcedTimeLeft() / 1000);
+      this.nextDistance = this.forcedMotion.forward * this.topSpeed * (this.forcedTimeLeft() / 1000);
       return;
     }
     if (! this.nextTarget) {
@@ -187,7 +232,7 @@ BotControl.prototype = {
     var ad = angleDiff(this.angle, this.targetAngle);
     if (Math.abs(ad) < RAD_ERR) {
       var factor = (RAD_ERR-Math.abs(ad)) * (1/RAD_ERR);
-      this.nextDistance = factor * Math.min(TOP_SPEED * ASSUMED_TIMESTEP, Math.max(1, this.pathDistanceRemaining));
+      this.nextDistance = factor * Math.min(this.topSpeed * ASSUMED_TIMESTEP, Math.max(1, this.pathDistanceRemaining));
     } else {
       this.nextDistance *= 0.5;
     }
@@ -232,7 +277,7 @@ BotControl.prototype = {
       return {
         left: isStopped && ! this.isStopped ? -1 : -right,
         right: isStopped && ! this.isStopped ? -1 : -left,
-        speed: isStopped ? 0 : TOP_SPEED
+        speed: isStopped ? 0 : this.topSpeed
       }
       this.isStopped = isStopped;
     } else {

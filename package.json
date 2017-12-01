@@ -13,6 +13,7 @@
     "body-parser": "^1.17.2",
     "express": "^4.16.2",
     "express-ws": "^3.0.0",
+    "json-logger": "git+https://github.com/zamfi/json-logger.git",
     "livecam": "^0.2.0",
     "webcam-stream": "git+https://github.com/CDR-IxD/webcam-stream.git",
     "ws": "^3.1.0"
