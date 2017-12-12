@@ -45,7 +45,7 @@ function dist(x1, y1, x2, y2) {
   return Math.sqrt(Math.pow(x2-x1, 2) + Math.pow(y2-y1, 2));
 }
 
-var USE_GUESSED_UPDATES = true;
+var USE_GUESSED_UPDATES = false;
 
 // mm or mm/sec
 var TOP_SPEED = 50;
@@ -116,7 +116,7 @@ BotControl.prototype = {
     var fractionalLocation = location.map(function(pt) { return { x: pt.x / frameSize.width, y: pt.y / frameSize.height }; });
     
     this.noteLocation(fractionalLocation, this.frameSize);
-    console.log("guessed update!", fractionalLocation);
+    // console.log("guessed update!", fractionalLocation);
   },
   
   requestPath(path, id, topSpeed) {
@@ -182,7 +182,7 @@ BotControl.prototype = {
     this.updateRotation();
     this.updateSpeed();
     
-    if (this.forcedMotion && this.forcedTimeLeft <= 0) { // no time left
+    if (this.forcedMotion && this.forcedTimeLeft() <= 0) { // no time left
       delete this.forcedMotion;
     }
     
@@ -243,7 +243,6 @@ BotControl.prototype = {
   },
   
   sendCommand(obj) {
-    console.log()
     if (this.socket) {
       try {
         this.socket.send(JSON.stringify(obj));

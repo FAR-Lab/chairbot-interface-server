@@ -29,7 +29,7 @@ app.set('views', './pages');
 
 var wasdInfo = {linear: 0, rotation: 0};
 app.post('/wasd', function(req, res) {
-  console.log(req.query.linear, req.query.rotation);
+  console.log("got wasd", req.query.linear, req.query.rotation);
   wasdInfo = {linear: Number(req.query.linear), rotation: Number(req.query.rotation)};
   sendCommand();
   
