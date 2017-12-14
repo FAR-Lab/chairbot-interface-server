@@ -514,7 +514,11 @@
           this.state.topSpeed,
           this.state.accel);
       }
-      
+
+      sendSpeed() {
+        sendSpeed(this.state.restrictedFiducialId, this.state.topSpeed, this.state.accel);
+      }
+	  
       processDrag() {        
         sendPath(this.state.candidate, this.state.pathInProgress, this.state.topSpeed, this.state.accel);
         this.setState({
