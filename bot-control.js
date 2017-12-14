@@ -157,7 +157,7 @@ BotControl.prototype = {
     this.updateActions();
   },
   
-  setTopSpeed(topSpeed, accel) {
+  setSpeed(topSpeed, accel) {
     this.topSpeed = topSpeed;
     this.topAngularSpeed = topSpeed / 4;
     this.accel = accel;

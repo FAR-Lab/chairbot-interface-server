@@ -113,7 +113,7 @@
       return ""+Math.round(Math.random()*1e7);
     }
     
-    function sendPath(fiducialKey, path, topSpeed) {
+    function sendPath(fiducialKey, path, topSpeed, accel) {
       console.log("requesting path", fiducialKey, path);
       let pid = pathId();
       socket.send(JSON.stringify({
