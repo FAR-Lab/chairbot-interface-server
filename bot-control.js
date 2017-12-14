@@ -50,6 +50,7 @@ var USE_GUESSED_UPDATES = false;
 // mm or mm/sec
 var TOP_SPEED = 50;
 var TOP_ANGULAR_SPEED = TOP_SPEED/4;
+var ACCEL = 50;
 var BASE_DIAMETER = 241; // 9.5 inches (24 cm?)
 var FIDUCIAL_EDGE_SIZE = 190; // ~< 8 inches (12.7 cm?)
 var ASSUMED_TIMESTEP = 0.5; // seconds
@@ -63,6 +64,7 @@ function BotControl(botId, skipConnection) {
   this.path = [];
   this.topSpeed = TOP_SPEED;
   this.topAngularSpeed = TOP_ANGULAR_SPEED;
+  this.accel = ACCEL;
   
   this.botId = botId;
   
@@ -95,6 +97,7 @@ BotControl.prototype = {
   
   missedUpdate() {
     // pretend based on motion?
+    // this moves the bots in the wrong direction, don't use for now.
     var frameSize = this.frameSize
     var location = this.location;
     var centerPt = centerOf(location);
@@ -119,13 +122,13 @@ BotControl.prototype = {
     // console.log("guessed update!", fractionalLocation);
   },
   
-  requestPath(path, id, topSpeed) {
+  requestPath(path, id, topSpeed, accel) {
     let frameSize = this.frameSize;
     console.log("path requested for bot", this.botId, "path is", path);
     this.fractionalPath = path;
     this.path = path.map(function(pt) { return { x: pt.x*frameSize.width, y: pt.y*frameSize.height }; }); 
     this.pathid = id;
-    this.setTopSpeed(topSpeed);
+    this.setSpeed(topSpeed, accel);
     delete this.forcedMotion;
     this.updateActions();
     
@@ -140,7 +143,7 @@ BotControl.prototype = {
     }
   },
   
-  force(fwd, turn, topSpeed) {
+  force(fwd, turn, topSpeed, accel) {
     this.path = [];
     this.fractionalPath = [];
     this.forcedMotion = {
@@ -148,15 +151,16 @@ BotControl.prototype = {
       turn: turn,
       until: Date.now() + ASSUMED_TIMESTEP * 1000,
     }
-    this.setTopSpeed(topSpeed);
+    this.setSpeed(topSpeed, accel);
     delete this.pathid;
 
     this.updateActions();
   },
   
-  setTopSpeed(topSpeed) {
+  setTopSpeed(topSpeed, accel) {
     this.topSpeed = topSpeed;
     this.topAngularSpeed = topSpeed / 4;
+    this.accel = accel;
   },
   
   distance(from, to) {
@@ -276,7 +280,8 @@ BotControl.prototype = {
       return {
         left: isStopped && ! this.isStopped ? -1 : -right,
         right: isStopped && ! this.isStopped ? -1 : -left,
-        speed: isStopped ? 0 : this.topSpeed
+        speed: isStopped ? 0 : this.topSpeed,
+        accel: this.accel
       }
       this.isStopped = isStopped;
     } else {

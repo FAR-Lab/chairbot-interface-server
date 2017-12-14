@@ -121,18 +121,20 @@
         bot: fiducialKey,
         pathId: pid,
         path: path,
-        topSpeed: topSpeed
+        topSpeed: topSpeed,
+        accel: accel
       }));
     }
     
-    function sendForce(fiducialKey, forcedForward, forcedTurn, topSpeed) {
+    function sendForce(fiducialKey, forcedForward, forcedTurn, topSpeed, accel) {
       console.log("requesting force", fiducialKey, forcedForward, forcedTurn);
       socket.send(JSON.stringify({
         action: "requestForced",
         bot: fiducialKey,
         forward: forcedForward,
         turn: forcedTurn,
-        topSpeed: topSpeed
+        topSpeed: topSpeed,
+        accel: accel
       }));
     }
     
@@ -205,6 +207,26 @@
       }
     }
 
+    class KeyButton extends React.Component {
+      render() {
+        let props = this.props;
+        let handler = props.handler;
+        let key = this.props.keyChar;
+        let text = this.props.text || key;
+        return <button
+                className={props.pressed ? "active" : ""}
+                onMouseDown={() => handler.handleKeyDown(key)}
+                onTouchStart={(event) => { handler.handleKeyDown(key); event.preventDefault(); }}
+                onMouseUp={() => handler.handleKeyUp(key)}
+                onMouseLeave={() => handler.handleKeyUp(key)}
+                onTouchCancel={() => handler.handleKeyUp(key)}
+                onTouchEnd={() => handler.handleKeyUp(key)} >
+            {text}
+          </button>
+        
+      }
+    }
+
     class DragViewApp extends React.Component {
       constructor(props) {
         super(props);
@@ -213,7 +235,8 @@
           restrictedFiducialId: restrictedFiducialId,
           forcedForward: 0,
           forcedTurn: 0,
-          topSpeed: 50
+          topSpeed: 50,
+          accel: 50
         }
         
         this.forcedTimer = setInterval(() => this.checkAndSendForce(), 250);
@@ -362,6 +385,7 @@
                 forcedTurn: 0
               };
             
+            // speed
             case '[':
               console.log('down [');
               return {
@@ -375,7 +399,23 @@
               return {
                 topSpeed: newSpeed > 300 ? this.state.topSpeed : newSpeed,
                 speedKeyPressed: true
-              }              
+              }
+              
+            // accel
+            case '{':
+              console.log('down {');
+              return {
+                accel: this.state.accel / 1.25,
+                decelKeyPressed: true
+              }
+              
+            case '}':
+              console.log('down }');
+              let newAccel = this.state.accel * 1.25;
+              return {
+                accel: newAccel > 300 ? this.state.accel : newAccel,
+                accelKeyPressed: true
+              }
             }
           }, () => send && this.sendForce());
         }
@@ -410,6 +450,8 @@
             return {
               forcedTurn: 0
             }
+            
+          // speed
           case '[':
             console.log('up [');
             return {
@@ -420,7 +462,18 @@
             return {
               speedKeyPressed: false
             }              
-            
+
+          // accel
+          case '{':
+            console.log('up {');
+            return {
+              decelKeyPressed: false
+            }
+          case '}':
+            console.log('up }');
+            return {
+              accelKeyPressed: false
+            }                          
           }
         }, () => send && this.sendForce());
         return false;
@@ -437,11 +490,12 @@
           this.state.restrictedFiducialId, 
           this.state.forcedForward, 
           this.state.forcedTurn, 
-          this.state.topSpeed);
+          this.state.topSpeed,
+          this.state.accel);
       }
       
       processDrag() {        
-        sendPath(this.state.candidate, this.state.pathInProgress, this.state.topSpeed);
+        sendPath(this.state.candidate, this.state.pathInProgress, this.state.topSpeed, this.state.accel);
         this.setState({
           candidate: null,
           pathInProgress: null
@@ -456,66 +510,23 @@
             <p className="info">
               Drag on the screen, starting from a chairbot, to request a path. <br /><br /><strong>{this.state.restrictedFiducialId ? `You control chairbot #${this.state.restrictedFiducialId}.` : "You can control any chairbot."}</strong><br /><br />
               Speed: <strong>{Math.round(this.state.topSpeed*10)/10}</strong><br />
-              <button ref={(lb) => this.leftBracket = lb}
-                      className={this.state.slowKeyPressed ? "active" : ""}
-                      onMouseDown={() => this.handleKeyDown('[')}
-                      onTouchStart={(event) => {this.handleKeyDown('['); event.preventDefault()}}
-                      onMouseUp={() => this.handleKeyUp('[')}
-                      onMouseLeave={() => this.handleKeyUp('[')}
-                      onTouchCancel={() => this.handleKeyUp('[')}
-                      onTouchEnd={() => this.handleKeyUp('[')}>
-                [</button>
-              <button ref={(rb) => this.rightBracket = rb}
-                      className={this.state.speedKeyPressed ? "active" : ""}
-                      onMouseDown={() => this.handleKeyDown(']')}
-                      onTouchStart={(event) => {this.handleKeyDown(']'); event.preventDefault()}}
-                      onMouseUp={() => this.handleKeyUp(']')}
-                      onMouseLeave={() => this.handleKeyUp(']')}
-                      onTouchCancel={() => this.handleKeyUp(']')}
-                      onTouchEnd={() => this.handleKeyUp(']')}>
-                ]</button>
+              <KeyButton pressed={this.state.slowKeyPressed} handler={this} keyChar="[" />
+              <KeyButton pressed={this.state.speedKeyPressed} handler={this} keyChar="]" />
+              <br />
+              Acceleration: <strong>{Math.round(this.state.accel*10)/10}</strong>
+              <br />
+              <KeyButton pressed={this.state.decelKeyPressed} handler={this} keyChar="{" />
+              <KeyButton pressed={this.state.accelKeyPressed} handler={this} keyChar="}" />
             </p>
             {this.state.restrictedFiducialId ? <p className="keyGroup">
               Alternative key-based controls:<br /><br />
-                <button ref={(w) => this.arrowUp = w}
-                        className={this.state.forcedForward > 0 ? "active" : ""}
-                        onMouseDown={() => this.handleKeyDown('w')}
-                        onTouchStart={(event) => {this.handleKeyDown('w'); event.preventDefault()}}
-                        onMouseUp={() => this.handleKeyUp('w')}
-                        onMouseLeave={() => this.handleKeyUp('w')}
-                        onTouchCancel={() => this.handleKeyUp('w')}
-                        onTouchEnd={() => this.handleKeyUp('w')}>w</button><br />
-                <button ref={(a) => this.arrowLeft = a} 
-                        className={this.state.forcedTurn < 0 ? "active" : ""}
-                        onMouseDown={() => this.handleKeyDown('a')}
-                        onTouchStart={(event) => {this.handleKeyDown('a'); event.preventDefault()}}
-                        onMouseUp={() => this.handleKeyUp('a')}
-                        onMouseLeave={() => this.handleKeyUp('a')}
-                        onTouchCancel={() => this.handleKeyUp('a')}
-                        onTouchEnd={() => this.handleKeyUp('a')}>a</button>
-                <button ref={(s) => this.arrowDown = s} 
-                        className={this.state.forcedForward < 0 ? "active" : ""}
-                        onMouseDown={() => this.handleKeyDown('s')}
-                        onTouchStart={(event) => {this.handleKeyDown('s'); event.preventDefault()}}
-                        onMouseUp={() => this.handleKeyUp('s')}
-                        onMouseLeave={() => this.handleKeyUp('s')}
-                        onTouchCancel={() => this.handleKeyUp('s')}
-                        onTouchEnd={() => this.handleKeyUp('s')}>s</button>
-                <button ref={(d) => this.arrowRight = d} 
-                        className={this.state.forcedTurn > 0 ? "active" : ""}
-                        onMouseDown={() => this.handleKeyDown('d')}
-                        onTouchStart={(event) => {this.handleKeyDown('d'); event.preventDefault()}}
-                        onMouseUp={() => this.handleKeyUp('d')}
-                        onMouseLeave={() => this.handleKeyUp('d')}
-                        onTouchCancel={() => this.handleKeyUp('d')}
-                        onTouchEnd={() => this.handleKeyUp('d')}>d</button><br />
-                <button ref={(stop) => this.stopButton = stop}
-                        onMouseDown={() => this.handleKeyDown(' ')}
-                        onTouchStart={(event) => {this.handleKeyDown(' '); event.preventDefault()}}
-                        onMouseUp={() => this.handleKeyUp(' ')}
-                        onMouseLeave={() => this.handleKeyUp(' ')}
-                        onTouchCancel={() => this.handleKeyUp(' ')}
-                        onTouchEnd={() => this.handleKeyUp(' ')}>stop</button>
+                <KeyButton pressed={this.state.forcedForward > 0} handler={this} keyChar="w" />
+                <br />
+                <KeyButton pressed={this.state.forcedTurn < 0} handler={this} keyChar="a" />
+                <KeyButton pressed={this.state.forcedForward < 0} handler={this} keyChar="s" />
+                <KeyButton pressed={this.state.forcedTurn > 0} handler={this} keyChar="d" />
+                <br />
+                <KeyButton pressed={false} handler={this} keyChar=" " text="space (stop!)" />
               </p> : ''}
           </div>
           <svg 
