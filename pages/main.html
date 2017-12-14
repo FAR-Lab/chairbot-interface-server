@@ -138,6 +138,16 @@
       }));
     }
     
+    function sendSpeed(fiducialKey, topSpeed, accel) {
+      console.log("updating speed", fiducialKey, topSpeed, accel);
+      socket.send(JSON.stringify({
+        action: "requestSpeed",
+        bot: fiducialKey,
+        topSpeed: topSpeed,
+        accel: accel
+      }));
+    }
+    
     var theViewer;
     function handleUpdate(update) {
       if (theViewer) {
@@ -347,6 +357,7 @@
           });
         } else {
           let send = false;
+          let sendSpeed = false;
           this.setState(state => {
           switch(key) {
             case 'w':
@@ -388,6 +399,7 @@
             // speed
             case '[':
               console.log('down [');
+              sendSpeed = true;
               return {
                 topSpeed: this.state.topSpeed / 1.25,
                 slowKeyPressed: true
@@ -395,6 +407,7 @@
               
             case ']':
               console.log('down ]');
+              sendSpeed = true;
               let newSpeed = this.state.topSpeed * 1.25;
               return {
                 topSpeed: newSpeed > 300 ? this.state.topSpeed : newSpeed,
@@ -404,6 +417,7 @@
             // accel
             case '{':
               console.log('down {');
+              sendSpeed = true;
               return {
                 accel: this.state.accel / 1.25,
                 decelKeyPressed: true
@@ -411,13 +425,20 @@
               
             case '}':
               console.log('down }');
+              sendSpeed = true;
               let newAccel = this.state.accel * 1.25;
               return {
                 accel: newAccel > 300 ? this.state.accel : newAccel,
                 accelKeyPressed: true
               }
             }
-          }, () => send && this.sendForce());
+          }, () => {
+            if (send) {
+              this.sendForce();
+            } else if (sendSpeed) {
+              this.sendSpeed();
+            }
+          });
         }
         return false;
       }

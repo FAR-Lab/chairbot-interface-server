@@ -72,6 +72,10 @@ app.ws('/web-controller', function(ws, req) {
         console.log("got forced!", msg);
         var control = BotControl.for(msg.bot);
         control.force(msg.forward, msg.turn, msg.topSpeed, msg.accel);
+      } else if (msg.action == "requestSpeed") {
+        console.log("got speed!", msg);
+        var control = BotControl.for(msg.bot);
+        control.setSpeed(msg.topSpeed, msg.accel);
       }
     } catch (e) {
       console.error("Unable to request path", msg, e);
