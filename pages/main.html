@@ -196,6 +196,9 @@
       }
       
       render() {
+        if (! this.props.status.location) {
+          return null;
+        }
         let cpt = this.centerPt();
         return <g>
           <path d={this.chair()} strokeWidth="1" stroke={this.props.isDraggable ? "#0a0" : "#000"} fill="none" strokeLinejoin="round"/>

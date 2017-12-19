@@ -48,23 +48,31 @@ function dist(x1, y1, x2, y2) {
 var USE_GUESSED_UPDATES = false;
 
 // mm or mm/sec
-var TOP_SPEED = 50;
-var TOP_ANGULAR_SPEED = TOP_SPEED/4;
-var ACCEL = 50;
 var BASE_DIAMETER = 241; // 9.5 inches (24 cm?)
 var FIDUCIAL_EDGE_SIZE = 190; // ~< 8 inches (12.7 cm?)
 var ASSUMED_TIMESTEP = 0.5; // seconds
 var MISSED_UPDATE_DELAY = 250;
 
-var RAD_ERR = 1;
+var TOP_SPEED = 50;
+var TOP_ANGULAR_SPEED = 0.5;
+var ACCEL = 50;
+var ANGULAR_ACCEL = 0.5;
+
+var PROP_ANGLE_STEP = 1;
+var RAD_ERR = 0.2;
+var DIST_ERR = BASE_DIAMETER;
 
 function BotControl(botId, skipConnection) {
   this.location = null;
   this.fractionalLocation = null;
   this.path = [];
+  this.speed = 0;
   this.topSpeed = TOP_SPEED;
+  this.angularSpeed = 0;
   this.topAngularSpeed = TOP_ANGULAR_SPEED;
   this.accel = ACCEL;
+  this.angularAccel = ANGULAR_ACCEL;
+  this.lastUpdate = Date.now();
   
   this.botId = botId;
   
@@ -128,7 +136,7 @@ BotControl.prototype = {
     this.fractionalPath = path;
     this.path = path.map(function(pt) { return { x: pt.x*frameSize.width, y: pt.y*frameSize.height }; }); 
     this.pathid = id;
-    this.setSpeed(topSpeed, accel);
+    this.setTopSpeed(topSpeed, accel);
     delete this.forcedMotion;
     this.updateActions();
     
@@ -151,16 +159,17 @@ BotControl.prototype = {
       turn: turn,
       until: Date.now() + ASSUMED_TIMESTEP * 1000,
     }
-    this.setSpeed(topSpeed, accel);
+    this.setTopSpeed(topSpeed, accel);
     delete this.pathid;
 
     this.updateActions();
   },
   
-  setSpeed(topSpeed, accel) {
+  setTopSpeed(topSpeed, accel) {
     this.topSpeed = topSpeed;
-    this.topAngularSpeed = topSpeed / 4;
+    this.topAngularSpeed = topSpeed / TOP_SPEED * TOP_ANGULAR_SPEED;
     this.accel = accel;
+    this.angularAccel = accel / ACCEL * ANGULAR_ACCEL;
   },
   
   distance(from, to) {
@@ -183,8 +192,9 @@ BotControl.prototype = {
     ), { to: this.centerPt, distanceSoFar: 0 }).distanceSoFar;
     this.nextTarget = this.path[0];
     
-    this.updateRotation();
-    this.updateSpeed();
+    this.setTargetRotation();
+    this.setTargetSpeed();
+    this.updateSpeeds();
     
     if (this.forcedMotion && this.forcedTimeLeft() <= 0) { // no time left
       delete this.forcedMotion;
@@ -194,56 +204,73 @@ BotControl.prototype = {
   },
   
   // rotation is radians / sec
-  updateRotation() {
-    this.lastRotation = this.nextRotation;
+  setTargetRotation() {
+    // this.lastRotation = this.nextRotation;
     if (this.forcedMotion) {
-      this.nextRotation = this.forcedMotion.turn * this.topAngularSpeed * (this.forcedTimeLeft() / 1000);
+      this.targetAngularSpeed = this.forcedMotion.turn * this.topAngularSpeed;
       return;
     }
     if (! this.nextTarget) {
-      this.nextRotation = 0;
+      this.targetAngularSpeed = 0;
       return;
     }
     this.targetAngle = Math.atan2(this.nextTarget.y - this.centerPt.y, this.nextTarget.x - this.centerPt.x);
 
     var ad = angleDiff(this.angle, this.targetAngle);
     var absad = Math.abs(ad);
-    var angleDistance = ad * BASE_DIAMETER;
-    var propFactor = absad > RAD_ERR ? 1 : (RAD_ERR-absad) * (1/RAD_ERR);
-    if (ad > RAD_ERR) { // TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP) {
-      this.nextRotation = propFactor * Math.min(angleDistance, this.topAngularSpeed * ASSUMED_TIMESTEP);
-    } else if (ad < RAD_ERR) { // if (angleDistance < -TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP) {
-      this.nextRotation = propFactor * Math.max(angleDistance, -this.topAngularSpeed * ASSUMED_TIMESTEP);
+    // var angleDistance = ad * BASE_DIAMETER;
+    // var propFactor = absad > RAD_ERR ? 1 : (RAD_ERR-absad) * (1/RAD_ERR);
+    
+    if (Math.abs(ad) > Math.abs(PROP_ANGLE_STEP)) { // TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP) {
+      this.targetAngularSpeed = Math.sign(ad) * this.topAngularSpeed;
     } else {
-      this.nextRotation = 0;
+      this.targetAngularSpeed = Math.abs(ad) / Math.abs(PROP_ANGLE_STEP) * this.topAngularSpeed;
     }
-    if (this.nextRotation != 0 && Math.abs(this.nextRotation) < 1) {
-      this.nextRotation = Math.sign(this.nextRotation);
-    }
-    console.log("next rotation is", this.nextRotation);
+
+    // if (this.nextRotation != 0 && Math.abs(this.nextRotation) < 1) {
+    //   this.nextRotation = Math.sign(this.nextRotation);
+    // }
+    console.log("next rotation is", this.targetAngularSpeed);
   },
   
-  updateSpeed() {
-    this.lastDistance = this.nextDistance;
+  setTargetSpeed() {
+    // this.lastDistance = this.nextDistance;
     if (this.forcedMotion) {
-      this.nextDistance = this.forcedMotion.forward * this.topSpeed * (this.forcedTimeLeft() / 1000);
+      this.targetSpeed = this.forcedMotion.forward * this.topSpeed;
       return;
     }
     if (! this.nextTarget) {
-      this.nextDistance = 0;
+      this.targetSpeed = 0;
       return;
     }
+    
     var ad = angleDiff(this.angle, this.targetAngle);
-    if (Math.abs(ad) < RAD_ERR) {
-      var factor = (RAD_ERR-Math.abs(ad)) * (1/RAD_ERR);
-      this.nextDistance = factor * Math.min(this.topSpeed * ASSUMED_TIMESTEP, Math.max(1, this.pathDistanceRemaining));
+    if (Math.abs(ad) > RAD_ERR) {
+      this.targetSpeed = 0;
     } else {
-      this.nextDistance *= 0.5;
+      var angleFactor = (RAD_ERR-Math.abs(ad)) / RAD_ERR;
+      var distanceFactor = this.pathDistanceRemaining > DIST_ERR ? 1 : (DIST_ERR-this.pathDistanceRemaining) / DIST_ERR;
+      this.targetSpeed = angleFactor * distanceFactor * this.topSpeed;
     }
-    if (this.nextDistance > 0 && this.nextDistance < 1) {
-      this.nextDistance = 1;
+    console.log("next speed is", this.targetSpeed);
+  },
+  
+  updateSpeeds() {
+    var now = Date.now();
+    var dt = (now - this.lastUpdate) / 1000;
+    
+    if (this.targetSpeed > this.speed) {
+      this.speed += Math.min(this.accel * dt, this.targetSpeed - this.speed);
+    } else {
+      this.speed -= Math.min(this.accel * dt, this.speed - this.targetSpeed);
     }
-    console.log("next distance is", this.nextDistance);
+    if (this.targetAngularSpeed > this.angularSpeed) {
+      this.angularSpeed += Math.min(this.angularAccel * dt, this.targetAngularSpeed - this.angularSpeed);
+    } else {
+      this.angularSpeed -= Math.min(this.angularAccel * dt, this.angularSpeed - this.targetAngularSpeed);
+    }
+    
+    this.lastUpdate = now;
   },
   
   sendCommand(obj) {
@@ -258,29 +285,34 @@ BotControl.prototype = {
   
   nextAction() {
     if (this.nextTarget || this.forcedMotion) {
-      var left = this.nextDistance || 0;
-      var right = this.nextDistance || 0;
-      left += this.nextRotation || 0;
-      right -= this.nextRotation || 0;
+      var leftSpeed = this.speed;
+      var rightSpeed = this.speed;
+      
+      var angularSpeed = this.angularSpeed * BASE_DIAMETER/2;
+      leftSpeed += angularSpeed;
+      rightSpeed -= angularSpeed;
 
-      var isStopped = left == 0 && right == 0;
-	
-      if (this.nextDistance > 0) { // if we're not rotating in place
-        // don't allow wheel reversal
-        if (left < 0) {
-          left = 0;
-          right += -left;
-        }
-        if (right < 0) {
-          right = 0;
-          left += -right;
-        }
-      }
+      // if (this.nextDistance > 0) { // if we're not rotating in place
+      //   // don't allow wheel reversal
+      //   if (left < 0) {
+      //     left = 0;
+      //     right += -left;
+      //   }
+      //   if (right < 0) {
+      //     right = 0;
+      //     left += -right;
+      //   }
+      // }
+
+      var isStopped = Math.abs(leftSpeed) < 0.01 && Math.abs(rightSpeed) < 0.01 
+
+      var leftDistance = leftSpeed * ASSUMED_TIMESTEP;
+      var rightDistance = rightSpeed * ASSUMED_TIMESTEP;      
 
       return {
-        left: isStopped && ! this.isStopped ? -1 : -right,
-        right: isStopped && ! this.isStopped ? -1 : -left,
-        speed: isStopped ? 0 : this.topSpeed,
+        left: isStopped && ! this.isStopped ? -1 : -rightDistance,
+        right: isStopped && ! this.isStopped ? -1 : -leftDistance,
+        speed: isStopped ? 0 : Math.max(leftSpeed, rightSpeed),
         accel: this.accel
       }
       this.isStopped = isStopped;
