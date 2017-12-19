@@ -54,12 +54,13 @@ var ASSUMED_TIMESTEP = 0.5; // seconds
 var MISSED_UPDATE_DELAY = 250;
 
 var TOP_SPEED = 50;
-var TOP_ANGULAR_SPEED = 0.5;
-var ACCEL = 50;
-var ANGULAR_ACCEL = 0.5;
+var TOP_ANGULAR_SPEED = 0.3;
+var ACCEL = 300;
+var ANGULAR_ACCEL = 6;
 
 var PROP_ANGLE_STEP = 1;
-var RAD_ERR = 0.2;
+var RAD_ERR = 0.8;
+var RAD_DEAD = 0.4;
 var DIST_ERR = BASE_DIAMETER;
 
 function BotControl(botId, skipConnection) {
@@ -205,7 +206,6 @@ BotControl.prototype = {
   
   // rotation is radians / sec
   setTargetRotation() {
-    // this.lastRotation = this.nextRotation;
     if (this.forcedMotion) {
       this.targetAngularSpeed = this.forcedMotion.turn * this.topAngularSpeed;
       return;
@@ -218,23 +218,20 @@ BotControl.prototype = {
 
     var ad = angleDiff(this.angle, this.targetAngle);
     var absad = Math.abs(ad);
-    // var angleDistance = ad * BASE_DIAMETER;
-    // var propFactor = absad > RAD_ERR ? 1 : (RAD_ERR-absad) * (1/RAD_ERR);
-    
+
+      // 1/2 a * t^2 = d ; vf = a * t ; t = sqrt(2 * d/a) = vf / a ; vf = a * sqrt(2 d /a) = sqrt(2*d*a*a / a) = sqrt(2da)
+    var topSpeedToHitTarget = Math.min(Math.sqrt(2 * absad * this.angularAccel) * 0.9, this.topAngularSpeed);
+      
     if (Math.abs(ad) > Math.abs(PROP_ANGLE_STEP)) { // TOP_ANGULAR_SPEED * ASSUMED_TIMESTEP) {
-      this.targetAngularSpeed = Math.sign(ad) * this.topAngularSpeed;
+      this.targetAngularSpeed = Math.sign(ad) * topSpeedToHitTarget;
     } else {
-      this.targetAngularSpeed = Math.abs(ad) / Math.abs(PROP_ANGLE_STEP) * this.topAngularSpeed;
+      this.targetAngularSpeed = ad / Math.abs(PROP_ANGLE_STEP) * topSpeedToHitTarget;
     }
 
-    // if (this.nextRotation != 0 && Math.abs(this.nextRotation) < 1) {
-    //   this.nextRotation = Math.sign(this.nextRotation);
-    // }
-    console.log("next rotation is", this.targetAngularSpeed);
+    // console.log("next rotation is", this.targetAngularSpeed);
   },
   
   setTargetSpeed() {
-    // this.lastDistance = this.nextDistance;
     if (this.forcedMotion) {
       this.targetSpeed = this.forcedMotion.forward * this.topSpeed;
       return;
@@ -245,14 +242,17 @@ BotControl.prototype = {
     }
     
     var ad = angleDiff(this.angle, this.targetAngle);
+    var topSpeedToHitTarget = Math.min(Math.sqrt(2 * this.pathDistanceRemaining * this.accel) * 0.9, this.topSpeed);
+
     if (Math.abs(ad) > RAD_ERR) {
       this.targetSpeed = 0;
+    } else if (Math.abs(ad) < RAD_DEAD) {
+      this.targetSpeed = topSpeedToHitTarget;
     } else {
-      var angleFactor = (RAD_ERR-Math.abs(ad)) / RAD_ERR;
-      var distanceFactor = this.pathDistanceRemaining > DIST_ERR ? 1 : (DIST_ERR-this.pathDistanceRemaining) / DIST_ERR;
-      this.targetSpeed = angleFactor * distanceFactor * this.topSpeed;
+      var angleFactor = (RAD_ERR-Math.abs(ad)-RAD_DEAD) / (RAD_ERR-RAD_DEAD);
+      this.targetSpeed = angleFactor * topSpeedToHitTarget;
     }
-    console.log("next speed is", this.targetSpeed);
+    // console.log("next speed is", this.targetSpeed);
   },
   
   updateSpeeds() {
@@ -262,14 +262,17 @@ BotControl.prototype = {
     if (this.targetSpeed > this.speed) {
       this.speed += Math.min(this.accel * dt, this.targetSpeed - this.speed);
     } else {
-      this.speed -= Math.min(this.accel * dt, this.speed - this.targetSpeed);
+      this.speed += Math.max(-this.accel * dt, this.targetSpeed - this.speed);
     }
+
     if (this.targetAngularSpeed > this.angularSpeed) {
       this.angularSpeed += Math.min(this.angularAccel * dt, this.targetAngularSpeed - this.angularSpeed);
     } else {
-      this.angularSpeed -= Math.min(this.angularAccel * dt, this.angularSpeed - this.targetAngularSpeed);
+      this.angularSpeed += Math.max(-this.angularAccel * dt, this.targetAngularSpeed - this.angularSpeed);
     }
-    
+
+    // console.log("speeds:", this.speed, "->", this.targetSpeed, "angles:", this.angularSpeed, "->", this.targetAngularSpeed);
+      
     this.lastUpdate = now;
   },
   
@@ -284,7 +287,7 @@ BotControl.prototype = {
   },
   
   nextAction() {
-    if (this.nextTarget || this.forcedMotion) {
+    if (Math.abs(this.speed) > 0.1 || Math.abs(this.angularSpeed) > 0.01 || this.nextTarget || this.forcedMotion) {
       var leftSpeed = this.speed;
       var rightSpeed = this.speed;
       
@@ -292,18 +295,8 @@ BotControl.prototype = {
       leftSpeed += angularSpeed;
       rightSpeed -= angularSpeed;
 
-      // if (this.nextDistance > 0) { // if we're not rotating in place
-      //   // don't allow wheel reversal
-      //   if (left < 0) {
-      //     left = 0;
-      //     right += -left;
-      //   }
-      //   if (right < 0) {
-      //     right = 0;
-      //     left += -right;
-      //   }
-      // }
-
+      // console.log("getting action!", this.speed, angularSpeed, leftSpeed, rightSpeed);
+	
       var isStopped = Math.abs(leftSpeed) < 0.01 && Math.abs(rightSpeed) < 0.01 
 
       var leftDistance = leftSpeed * ASSUMED_TIMESTEP;
@@ -312,7 +305,7 @@ BotControl.prototype = {
       return {
         left: isStopped && ! this.isStopped ? -1 : -rightDistance,
         right: isStopped && ! this.isStopped ? -1 : -leftDistance,
-        speed: isStopped ? 0 : Math.max(leftSpeed, rightSpeed),
+        speed: isStopped ? 0 : Math.min(Math.max(Math.abs(leftSpeed), Math.abs(rightSpeed)), 300),
         accel: this.accel
       }
       this.isStopped = isStopped;
