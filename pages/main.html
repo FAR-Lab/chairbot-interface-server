@@ -242,7 +242,7 @@
         return <g>
           <path d={this.chair()} strokeWidth="1" stroke={this.props.isDraggable ? "#0a0" : "#000"} fill="none" strokeLinejoin="round"/>
           {this.props.status.path ? 
-            <g stroke="#a00"><PathView path={this.props.status.path} finalTick={this.props.status.finalOrientation} /></g> :
+            <g stroke="#a00"><PathView path={[scale(cpt, 1/100)].concat(this.props.status.path)} finalTick={this.props.status.finalOrientation} /></g> :
             ""}
           <circle cx={cpt.x} cy={cpt.y} r="3" fill="#fff" opacity="0.5"/>
           <text x={cpt.x-1.5} y={cpt.y+1.5} fontFamily="Verdana" fontSize="5" fill="#000">{this.props.status.id}</text>
@@ -510,7 +510,7 @@
           keys = keys.filter(k => k == this.state.restrictedFiducialId);
         }
         return keys.reduce((p, k) => {
-          if (distance(this.fiducialPathEnd(k) || this.fiducialCenter(k), point) < distance(this.fiducialPathEnd(k) || this.fiducialCenter(k), point)) {
+          if (distance(this.fiducialPathEnd(k) || this.fiducialCenter(k), point) < distance(this.fiducialPathEnd(p) || this.fiducialCenter(p), point)) {
             return k;
           } else {
             return p;
@@ -839,12 +839,14 @@
       }
             
       render() {
-        let pathInProgress = this.state.pathInProgress
-        if (pathInProgress && this.state.candidate && this.state.states[this.state.candidate].path) {
+        let pathInProgress = this.state.pathInProgress;
+        if (pathInProgress && this.state.candidate) {
           let existingPath = this.state.states[this.state.candidate].path;
-          if (existingPath.length > 0) {
+          if (existingPath && existingPath.length > 0) {
             pathInProgress = [existingPath[existingPath.length-1]].concat(pathInProgress);
             console.log("using existing path!", pathInProgress);
+          } else {
+            pathInProgress = [this.fiducialCenter(this.state.requiredFiducialId || this.state.candidate)].concat(pathInProgress);
           }
         }
         
@@ -911,7 +913,7 @@
       }
       
       handleUpdate(status) {
-        console.log("update!", status);        
+        // console.log("update!", status);        
         this.setState(state => {
           let newStates = {};
           newStates[status.id] = Object.assign({}, state.states[status.id] || {}, status);

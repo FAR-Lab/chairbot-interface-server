@@ -94,7 +94,7 @@ app.ws('/web-controller', function(ws, req) {
           bots: [{
             id: bot.botId,
             path: bot.fractionalPath,
-            finalOrientation: bot.finalOrientation
+            finalOrientation: bot.fractionalFinalOrientation
           }]
         };
         sendControllersUpdate(update);
@@ -146,7 +146,7 @@ app.ws('/bot-updates', function(ws, req) {
                 location: bot.fractionalLocation,
                 path: bot.fractionalPath,
                 nextAction: bot.nextAction(),
-                finalOrientation: bot.finalOrientation,
+                finalOrientation: bot.fractionalFinalOrientation,
                 // topSpeed: bot.topSpeed
               };
             }),

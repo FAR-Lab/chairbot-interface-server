@@ -62,7 +62,7 @@ var ANGULAR_ACCEL = 6;
 var PROP_ANGLE_STEP = 1;
 var RAD_ERR = 0.8;
 var RAD_DEAD = 0.4;
-var RAD_FINAL = 0.1;
+var RAD_FINAL = 0.01;
 var DIST_ERR = BASE_DIAMETER;
 
 function BotControl(botId, skipConnection) {
@@ -143,6 +143,8 @@ BotControl.prototype = {
     } else {
       this.fractionalPath = path;      
     }
+    this.finalOrientation = null;
+    this.fractionalFinalOrientation = null;
     console.log("new path for bot", this.botId, "is", this.fractionalPath);
     this.path = this.fractionalPath.map(function(pt) { return { x: pt.x*frameSize.width, y: pt.y*frameSize.height }; }); 
     this.pathid = id;
@@ -207,13 +209,14 @@ BotControl.prototype = {
   },
   
   updateActions() {
-    while(this.path.length > 0 && this.distance(this.path[0], this.centerPt) < BASE_DIAMETER) {
+    while(this.path.length > 0 && this.distance(this.path[0], this.centerPt) < BASE_DIAMETER/1.5) { // 1.5: just a little bit of wiggle room
       console.log("skipping point", this.path[0], "distance", this.distance(this.path[0], this.centerPt));
       this.path.shift();
       this.fractionalPath.shift();
     }
-    if (this.finalOrientation && this.angleTo(this.finalOrientation) < Math.abs(RAD_FINAL)) {
+    if (this.finalOrientation && Math.abs(this.angleTo(this.finalOrientation)) < RAD_FINAL) {
       delete this.finalOrientation;
+      delete this.fractionalFinalOrientation;
     }
     this.pathDistanceRemaining = this.path.reduce((p, c) => (
       { to: c, distanceSoFar: p.distanceSoFar + this.distance(p.to, c) }
