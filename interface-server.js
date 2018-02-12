@@ -51,6 +51,12 @@ app.get('/', function (req, res) {
 let controlLog = logger.named('controller');
 
 var controllers = [];
+function sendControllersUpdate(update) {
+  controllers.forEach(function(ws) {
+    ws.send(JSON.stringify(update));
+  });
+}
+
 app.ws('/web-controller', function(ws, req) {
   console.log('paths socket connected');
   controllers.push(ws);
@@ -66,16 +72,36 @@ app.ws('/web-controller', function(ws, req) {
     try {
       if (msg.action == "requestPath") {
         console.log("got path!", msg);
-        var control = BotControl.for(msg.bot);
-        control.requestPath(msg.path, msg.pathId, msg.topSpeed, msg.accel);
+        var bot = BotControl.for(msg.bot);
+        if (msg.mechanism == "orient") {
+          bot.orient(msg.finalOrientation, msg.pathId, msg.topSpeed, msg.accel);
+        } else {
+          bot.requestPath(msg.path, msg.pathId, msg.topSpeed, msg.accel, msg.mechanism == "append");          
+        }
+        let update = {
+          bots: [{
+            id: bot.botId,
+            path: bot.fractionalPath,
+            finalOrientation: bot.fractionalFinalOrientation
+          }]
+        };
+        sendControllersUpdate(update);
       } else if (msg.action == "requestForced") {
         console.log("got forced!", msg);
-        var control = BotControl.for(msg.bot);
-        control.force(msg.forward, msg.turn, msg.topSpeed, msg.accel);
+        var bot = BotControl.for(msg.bot);
+        bot.force(msg.forward, msg.turn, msg.topSpeed, msg.accel);
+        let update = {
+          bots: [{
+            id: bot.botId,
+            path: bot.fractionalPath,
+            finalOrientation: bot.finalOrientation
+          }]
+        };
+        sendControllersUpdate(update);
       } else if (msg.action == "requestSpeed") {
         console.log("got speed!", msg);
-        var control = BotControl.for(msg.bot);
-        control.setTopSpeed(msg.topSpeed, msg.accel);
+        var bot = BotControl.for(msg.bot);
+        bot.setTopSpeed(msg.topSpeed, msg.accel);
       }
     } catch (e) {
       console.error("Unable to request path", msg, e);
@@ -113,23 +139,22 @@ app.ws('/bot-updates', function(ws, req) {
       console.error("Failed to process message updates", msg, e);
       return;
     }
-    let updates = {
+    let update = {
       bots: BotControl.all().map(function(bot) {
               return {
                 id: bot.botId,
                 location: bot.fractionalLocation,
                 path: bot.fractionalPath,
                 nextAction: bot.nextAction(),
+                finalOrientation: bot.finalOrientation,
                 // topSpeed: bot.topSpeed
               };
             }),
       frame: msg.size
     };
-//    console.log("got updates", updates);
+    // console.log("got updates", updates);
     
-    controllers.forEach(function(ws) {
-      ws.send(JSON.stringify(updates));
-    });
+    sendControllersUpdate(update);
   });
 });
 

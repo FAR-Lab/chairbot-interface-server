@@ -114,11 +114,12 @@
       return ""+Math.round(Math.random()*1e7);
     }
     
-    function sendPath(fiducialKey, path, topSpeed, accel) {
-      console.log("requesting path", fiducialKey, path);
+    function appendToPath(fiducialKey, path, topSpeed, accel) {
+      console.log("requesting path append", fiducialKey, path);
       let pid = pathId();
       socket.send(JSON.stringify({
         action: "requestPath",
+        mechanism: "append",
         bot: fiducialKey,
         pathId: pid,
         path: path,
@@ -127,6 +128,34 @@
       }));
     }
     
+    function sendPath(fiducialKey, path, topSpeed, accel) {
+      console.log("requesting path", fiducialKey, path);
+      let pid = pathId();
+      socket.send(JSON.stringify({
+        action: "requestPath",
+        mechanism: "replace",
+        bot: fiducialKey,
+        pathId: pid,
+        path: path,
+        topSpeed: topSpeed,
+        accel: accel
+      }));
+    }
+    
+    function sendOrientation(fiducialKey, finalOrientation, topSpeed, accel) {
+      console.log("requesting path append", fiducialKey, finalOrientation);
+      let pid = pathId();
+      socket.send(JSON.stringify({
+        action: "requestPath",
+        mechanism: "orient",
+        bot: fiducialKey,
+        pathId: pid,
+        finalOrientation: finalOrientation,
+        topSpeed: topSpeed,
+        accel: accel
+      }));
+    }
+
     function sendForce(fiducialKey, forcedForward, forcedTurn, topSpeed, accel) {
       console.log("requesting force", fiducialKey, forcedForward, forcedTurn);
       socket.send(JSON.stringify({
@@ -167,6 +196,15 @@
     function scale(pt, scale) {
       return pt ? {x: scale*pt.x, y: scale*pt.y} : {x: 0, y: 0};
     }
+    
+    function minus(p1, p2) {
+      return p1 && p2 ? {x: p1.x-p2.x, y: p1.y-p2.y}: {x: 0, y: 0};
+    }
+
+    function plus(p1, p2) {
+      return p1 && p2 ? {x: p1.x+p2.x, y: p1.y+p2.y}: {x: 0, y: 0};
+    }
+
 
     class ChairBot extends React.Component {
       location() {
@@ -203,7 +241,9 @@
         let cpt = this.centerPt();
         return <g>
           <path d={this.chair()} strokeWidth="1" stroke={this.props.isDraggable ? "#0a0" : "#000"} fill="none" strokeLinejoin="round"/>
-          {this.props.status.path ? <path d={this.path()} strokeWidth="1" stroke="#a00" fill="none" /> : ""}
+          {this.props.status.path ? 
+            <g stroke="#a00"><PathView path={this.props.status.path} finalTick={this.props.status.finalOrientation} /></g> :
+            ""}
           <circle cx={cpt.x} cy={cpt.y} r="3" fill="#fff" opacity="0.5"/>
           <text x={cpt.x-1.5} y={cpt.y+1.5} fontFamily="Verdana" fontSize="5" fill="#000">{this.props.status.id}</text>
         </g>
@@ -216,8 +256,22 @@
         return `M${loc.map(pt => `${pt.x},${pt.y}`).join('L')}`;
       }
       
+      tick() {
+        if (this.props.finalTick && this.props.path.length > 0) {
+          let loc = [this.props.path[this.props.path.length-1], this.props.finalTick].map(pt => scale(pt, 100));
+          let delta = minus(loc[1], loc[0])
+          loc[1] = plus(loc[0], scale(delta, 3/distance(loc[0], loc[1])))
+          return `M${loc.map(pt => `${pt.x},${pt.y}`).join('L')}`;
+        }
+      }
+      
       render() {
-        return <path d={this.path()} strokeWidth="1" fill="none" />
+        let tick = this.tick();
+        
+        return <React.Fragment>
+          <path d={this.path()} strokeWidth="1" fill="none" />
+          {tick ? <path d={tick} strokeWidth="0.25" fill="none" /> : ''}
+        </React.Fragment>
       }
     }
 
@@ -256,7 +310,7 @@
     class ForceDragTarget extends React.Component {
       constructor(props) {
         super(props);
-        this.deadZones = 40; // degrees spanning straight up/down
+        this.deadZones = 20; // degrees spanning straight up/down
         this.angleZones = 160;
         this.innerRadius = 40;
         this.outerRadius = 10;
@@ -434,6 +488,10 @@
         let loc = this.state.states[key];
         return loc && centerOf(loc.location);
       }
+      fiducialPathEnd(key) {
+        let loc = this.state.states[key];
+        return loc && loc.path && loc.path.length > 0 && loc.path[loc.path.length-1];
+      }
 
       mousePosition(event) {
         if (! ('pageX' in event) && ! (event.nativeEvent.touches.length > 0)) {
@@ -452,7 +510,7 @@
           keys = keys.filter(k => k == this.state.restrictedFiducialId);
         }
         return keys.reduce((p, k) => {
-          if (distance(this.fiducialCenter(k), point) < distance(this.fiducialCenter(p), point)) {
+          if (distance(this.fiducialPathEnd(k) || this.fiducialCenter(k), point) < distance(this.fiducialPathEnd(k) || this.fiducialCenter(k), point)) {
             return k;
           } else {
             return p;
@@ -466,28 +524,63 @@
       
       mouseDown(event) {
         // if (! this.isSvgEvent(event)) { return; }
-        this.dragging = true;
-        let point = this.mousePosition(event);
-        let candidate = this.nearestFiducial(point);
-        console.log("mouse down with candidate", candidate);
-        this.setState({
-          candidate: candidate,
-          pathInProgress: [this.fiducialCenter(candidate), point]
-        });
+        if (event.shiftKey) {
+          this.orienting = true;
+          let point = this.mousePosition(event);
+          let candidate = this.nearestFiducial(point);
+          let pathEnd = this.fiducialPathEnd(candidate) || this.fiducialCenter(candidate);
+          console.log("shift-mouse down with candidate", candidate);
+          this.setState(state => ({
+            candidate: candidate,
+            finalOrientation: point
+          }), () => this.processOrientation());
+        } else {
+          this.dragging = true;
+          let point = this.mousePosition(event);
+          let candidate = this.nearestFiducial(point);
+          let center = this.fiducialCenter(candidate);
+          console.log("mouse down with candidate", candidate);
+          this.setState(state => ({
+            candidate: candidate,
+            pathInProgress: (candidate && state.states[candidate].path) ? [point] : (center ? [center, point] : [point]),
+            nextPoint: point,
+            finalOrientation: null
+          }), () => this.processDrag());          
+        }
       }
       
       touchStart(event) {
-        this.mouseDown(event);
+        if (event.touches.length > 1) {
+          
+        } else {
+          this.mouseDown(event);
+          
+        }
         event.preventDefault();
       }
       
+      // these events trigger when over the path object too, annoying!
       mouseMove(event) {
         // if (! this.isSvgEvent(event)) { return; }
-        if (! this.dragging) { return; }
-        let point = this.mousePosition(event);
-        this.setState(state => ({
-          pathInProgress: state.pathInProgress.concat([point])
-        }));
+        if (this.dragging) {
+          let point = this.mousePosition(event);
+          if (! point) {
+            return;
+          }
+          console.log("dragging");
+          this.setState(state => ({
+            pathInProgress: state.pathInProgress ? state.pathInProgress.concat([point]) : [point],
+            nextPoint: point
+          }), () => this.processDrag());
+        } else if (this.orienting) {
+          let point = this.mousePosition(event);
+          if (! point) {
+            return;
+          }
+          this.setState(state => ({
+            finalOrientation: point
+          }), () => this.processOrientation());
+        }
       }
       
       touchMove(event) {
@@ -497,12 +590,28 @@
 
       mouseUp(event) {
         // if (! this.isSvgEvent(event)) { return; }
-        if (! this.dragging) { return; }
-        this.dragging = false;
-        let point = this.mousePosition(event);
-        this.setState(state => ({
-          pathInProgress: point ? state.pathInProgress.concat([point]) : state.pathInProgress
-        }), () => this.processDrag());
+        if (this.dragging) { 
+          this.dragging = false;
+          let point = this.mousePosition(event);
+          if (! point) {
+            this.processDrag(true);
+            return;
+          }
+          this.setState(state => ({
+            pathInProgress: (state.pathInProgress && point) ? state.pathInProgress.concat([point]) : (point ? [point] : state.pathInProgress),
+            nextPoint: point
+          }), () => this.processDrag(true));
+        } else if (this.orienting) {
+          this.orienting = false;
+          let point = this.mousePosition(event);
+          if (! point) {
+            this.processOrientation(true);
+            return;
+          }
+          this.setState(state => ({
+            finalOrientation: point
+          }), () => this.processOrientation(true));
+        }
       }
       
       mouseLeave(event) {
@@ -704,15 +813,41 @@
         sendSpeed(this.state.restrictedFiducialId, this.state.topSpeed, this.state.accel);
       }
 	  
-      processDrag() {        
-        sendPath(this.state.candidate, this.state.pathInProgress, this.state.topSpeed, this.state.accel);
-        this.setState({
-          candidate: null,
-          pathInProgress: null
-        });
+      processDrag(final) {        
+        appendToPath(this.state.restrictedFiducialId || this.state.candidate, [this.state.nextPoint], this.state.topSpeed, this.state.accel);
+        if (final) {
+          this.setState({
+            candidate: null,
+            pathInProgress: null,
+            nextPoint: null
+          });
+        } else {
+          this.setState({
+            nextPoint: null
+          });
+        }
       }
-      
+
+      processOrientation(final) {        
+        sendOrientation(this.state.restrictedFiducialId || this.state.candidate, this.state.finalOrientation, this.state.topSpeed, this.state.accel);
+        if (final) {
+          this.setState({
+            candidate: null,
+            finalOrientation: null
+          });
+        }
+      }
+            
       render() {
+        let pathInProgress = this.state.pathInProgress
+        if (pathInProgress && this.state.candidate && this.state.states[this.state.candidate].path) {
+          let existingPath = this.state.states[this.state.candidate].path;
+          if (existingPath.length > 0) {
+            pathInProgress = [existingPath[existingPath.length-1]].concat(pathInProgress);
+            console.log("using existing path!", pathInProgress);
+          }
+        }
+        
         return <div tabIndex="0"
             onKeyDown={this.keyDown.bind(this)}
             onKeyUp={this.keyUp.bind(this)} >
@@ -765,7 +900,7 @@
               {Object.keys(this.state.states).map(key =>
                 <ChairBot status={this.state.states[key]} highlight={key == this.state.candidate} key={`chair-${key}`} isDraggable={this.state.restrictedFiducialId === null || key == this.state.restrictedFiducialId /* == intentional to allow type conversion */} />
               )}
-              {this.state.pathInProgress ? <g stroke="#0a0"><PathView path={this.state.pathInProgress} /></g> : ''}
+              {pathInProgress ? <g stroke="#0a0"><PathView path={pathInProgress} finalTick={this.state.finalOrientation} /></g> : ''}
           </svg>
         </div>
       }
@@ -776,12 +911,19 @@
       }
       
       handleUpdate(status) {
-        console.log("update!", status);
-        let newStates = {};
-        newStates[status.id] = status;
-        this.setState((state) => ({
-          states: Object.assign({}, state.states, newStates),
-        }));
+        console.log("update!", status);        
+        this.setState(state => {
+          let newStates = {};
+          newStates[status.id] = Object.assign({}, state.states[status.id] || {}, status);
+
+          // clear path in progress if we've gotten update on path!
+          let clearPathInProgress = status.id == this.state.candidate || status.id == this.state.restrictedFiducialId;
+          
+          return {
+            states: Object.assign({}, state.states, newStates),
+            pathInProgress: clearPathInProgress ? null : state.pathInProgress
+          };
+        });
       }
     }
     $(function() {
