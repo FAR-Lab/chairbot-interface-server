@@ -66,6 +66,10 @@
     svg text::selection {
       background: none;
     }
+    
+    svg text {
+      cursor: pointer;
+    }
         
     iframe {
       border: 0;
@@ -208,7 +212,7 @@
 
     class ChairBot extends React.Component {
       location() {
-        return this.props.status.location.map(pt => scale(pt, 100));
+        return this.props.status.location.map(pt => scale(pt, 1000));
       }
       
       centerPt() {
@@ -226,12 +230,18 @@
       }
       
       path() {
-        let points = (this.props.status.path || []).map(pt => scale(pt, 100));
+        let points = (this.props.status.path || []).map(pt => scale(pt, 1000));
         if (points.length > 0) {
           return "M" + points.map(({x, y}) => `${x},${y}`).join("L")
         } else {
           return "";
         }
+      }
+
+      selectChairbot(event) {
+        this.props.selectChairbot();
+        event.preventDefault();
+        event.stopPropagation();
       }
       
       render() {
@@ -240,27 +250,44 @@
         }
         let cpt = this.centerPt();
         return <g>
-          <path d={this.chair()} strokeWidth="1" stroke={this.props.isDraggable ? "#0a0" : "#000"} fill="none" strokeLinejoin="round"/>
+          <path d={this.chair()} strokeWidth="5" stroke={this.props.isDraggable ? "#0a0" : "#000"} fill="none" strokeLinejoin="round"/>
           {this.props.status.path ? 
-            <g stroke="#a00"><PathView path={[scale(cpt, 1/100)].concat(this.props.status.path)} finalTick={this.props.status.finalOrientation} /></g> :
+            <g stroke="#a00"><PathView path={[scale(cpt, 1/1000)].concat(this.props.status.path)} finalTick={this.props.status.finalOrientation} /></g> :
             ""}
-          <circle cx={cpt.x} cy={cpt.y} r="3" fill="#fff" opacity="0.5"/>
-          <text x={cpt.x-1.5} y={cpt.y+1.5} fontFamily="Verdana" fontSize="5" fill="#000">{this.props.status.id}</text>
+          <circle cx={cpt.x} cy={cpt.y} r="30" fill="#fff" opacity="0.5"/>
+            <text x={cpt.x-15} y={cpt.y+15} fontFamily="Verdana" fontSize="40" fill="#000" onMouseDown={(event) =>  this.selectChairbot(event)} onTouchStart={(event) => this.selectChairbot(event)}>{this.props.status.id}</text>
         </g>
       }
     }
     
     class PathView extends React.Component {
       path() {
-        let loc = this.props.path.map(pt => scale(pt, 100));
+        let loc = this.props.path.map(pt => scale(pt, 1000));
         return `M${loc.map(pt => `${pt.x},${pt.y}`).join('L')}`;
       }
       
       tick() {
-        if (this.props.finalTick && this.props.path.length > 0) {
-          let loc = [this.props.path[this.props.path.length-1], this.props.finalTick].map(pt => scale(pt, 100));
-          let delta = minus(loc[1], loc[0])
-          loc[1] = plus(loc[0], scale(delta, 3/distance(loc[0], loc[1])))
+        if (this.props.path.length > 0) {
+          var loc;
+          if (this.props.finalTick) {
+            loc = [this.props.path[this.props.path.length-1], this.props.finalTick];
+          } else {
+            let endPt = this.props.path[this.props.path.length-1];
+            let farEnoughIndex = this.props.path.length-2;
+            while (farEnoughIndex >= 0 && distance(endPt, this.props.path[farEnoughIndex]) < .01) {
+              farEnoughIndex--;
+            }
+            if (farEnoughIndex >= 0) {
+              loc = [this.props.path[farEnoughIndex], endPt];
+            } else {
+              return;
+            }
+          }
+          loc = loc.map(pt => scale(pt, 1000))
+
+          let delta = minus(loc[1], loc[0]);
+          console.log("length is", distance(loc[0], loc[1]), "delta is", delta);
+          loc[1] = plus(loc[this.props.finalTick ? 0 : 1], scale(delta, 30/distance(loc[0], loc[1])))
           return `M${loc.map(pt => `${pt.x},${pt.y}`).join('L')}`;
         }
       }
@@ -269,8 +296,8 @@
         let tick = this.tick();
         
         return <React.Fragment>
-          <path d={this.path()} strokeWidth="1" fill="none" />
-          {tick ? <path d={tick} strokeWidth="0.25" fill="none" /> : ''}
+          <path d={this.path()} strokeWidth="10" fill="none" strokeLinejoin="round" strokeLinecap="round"/>
+          {tick ? <path d={tick} strokeWidth="2.5" fill="none" strokeLinecap="round" /> : ''}
         </React.Fragment>
       }
     }
@@ -640,11 +667,15 @@
         }, () => this.sendForce());
       }
       
+      selectChairbot(id) {
+        this.setState(state => ({
+          restrictedFiducialId: state.restrictedFiducialId == id ? null : Number(id)
+        }));
+      }
+      
       handleKeyDown(key) {
         if (key >= '0' && key <= '9') {
-          this.setState({
-            restrictedFiducialId: Number(key)
-          });
+          this.selectChairbot(key);
         } else if (key == '-') {
           this.setState({
             restrictedFiducialId: null
@@ -888,7 +919,7 @@
           </div>
           <svg 
             id="drag-view" 
-            viewBox="0 0 100 100" 
+            viewBox="0 0 1000 1000" 
             preserveAspectRatio="none"
             ref={(ref) => this.svg = ref}
             onMouseDown={this.mouseDown.bind(this)}
@@ -900,7 +931,11 @@
             onTouchEnd={this.touchEnd.bind(this)}
             onTouchCancel={this.touchEnd.bind(this)} >
               {Object.keys(this.state.states).map(key =>
-                <ChairBot status={this.state.states[key]} highlight={key == this.state.candidate} key={`chair-${key}`} isDraggable={this.state.restrictedFiducialId === null || key == this.state.restrictedFiducialId /* == intentional to allow type conversion */} />
+                <ChairBot 
+                  status={this.state.states[key]} 
+                  highlight={key == this.state.candidate} key={`chair-${key}`} 
+                  isDraggable={this.state.restrictedFiducialId === null || key == this.state.restrictedFiducialId /* == intentional to allow type conversion */}
+                  selectChairbot={() => this.selectChairbot(key)} />
               )}
               {pathInProgress ? <g stroke="#0a0"><PathView path={pathInProgress} finalTick={this.state.finalOrientation} /></g> : ''}
           </svg>
