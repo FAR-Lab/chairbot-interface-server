@@ -371,13 +371,13 @@
           }
           console.log("angle is", ang);
           if (ang > this.deadZones/2 && ang < this.angleZones/2) {
-            turn = map(ang, this.deadZones/2, this.angleZones/2, 0, 1);
+            turn = map(ang, this.deadZones/2, this.angleZones/2, 0, speed);
           } else if (ang > 180-this.angleZones/2 && ang < 180-this.deadZones/2) {
-            turn = map(ang, 180-this.deadZones/2, 180-this.angleZones/2, 0, 1);
+            turn = map(ang, 180-this.deadZones/2, 180-this.angleZones/2, 0, speed);
           } else if (ang < -this.deadZones/2 && ang > -this.angleZones/2) {
-            turn = map(ang, -this.deadZones/2, -this.angleZones/2, 0, -1);
+            turn = map(ang, -this.deadZones/2, -this.angleZones/2, 0, -speed);
           } else if (ang < -180+this.angleZones/2 && ang > -180+this.deadZones/2) {
-            turn = map(ang, -180+this.deadZones/2, -180+this.angleZones/2, 0, -1);
+            turn = map(ang, -180+this.deadZones/2, -180+this.angleZones/2, 0, -speed);
           }
           
           this.props.update(speed, turn);
@@ -660,7 +660,9 @@
       }
 
       mouseUp(event) {
-        this.upEvent(this.mousePosition(event), this.orienting);
+        if (this.orienting || this.dragging) {
+          this.upEvent(this.mousePosition(event), this.orienting);
+        }
       }
       
       mouseLeave(event) {
@@ -750,6 +752,20 @@
               return {
                 forcedForward: 0,
                 forcedTurn: 0
+              };
+              
+            case 'p':
+              console.log('down p');
+              sendSpeed = true;
+              return {
+                isPaused: true
+              };
+            
+            case 'p':
+              console.log('down p');
+              sendSpeed = true;
+              return {
+                isPaused: false
               };
             
             // speed
