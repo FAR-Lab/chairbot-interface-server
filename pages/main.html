@@ -520,14 +520,21 @@
         return loc && loc.path && loc.path.length > 0 && loc.path[loc.path.length-1];
       }
 
-      mousePosition(event) {
+      mousePosition(event, touchId) {
+        var touchIndex = 0;
+        if (typeof touchId == "number") {
+          touchIndex = event.nativeEvent.touches.indexOf(touch => touch.identifier == touchId);
+          if (touchIndex < 0) {
+            return null;
+          }
+        }
         if (! ('pageX' in event) && ! (event.nativeEvent.touches.length > 0)) {
           return null;
         }
         let bounds = ReactDOM.findDOMNode(this.svg).getBoundingClientRect();
         return {
-          x: ('pageX' in event ? event.pageX : event.nativeEvent.touches[0].pageX) / bounds.width, 
-          y: ('pageY' in event ? event.pageY : event.nativeEvent.touches[0].pageY) / bounds.height
+          x: ('pageX' in event ? event.pageX : event.nativeEvent.touches[touchIndex].pageX) / bounds.width, 
+          y: ('pageY' in event ? event.pageY : event.nativeEvent.touches[touchIndex].pageY) / bounds.height
         }
       }
       
@@ -549,11 +556,8 @@
         return event.target === this.svg;
       }
       
-      mouseDown(event) {
-        // if (! this.isSvgEvent(event)) { return; }
-        if (event.shiftKey) {
-          this.orienting = true;
-          let point = this.mousePosition(event);
+      startEvent(point, isOrienting) {
+        if (isOrienting) {
           let candidate = this.nearestFiducial(point);
           let pathEnd = this.fiducialPathEnd(candidate) || this.fiducialCenter(candidate);
           console.log("shift-mouse down with candidate", candidate);
@@ -562,8 +566,6 @@
             finalOrientation: point
           }), () => this.processOrientation());
         } else {
-          this.dragging = true;
-          let point = this.mousePosition(event);
           let candidate = this.nearestFiducial(point);
           let center = this.fiducialCenter(candidate);
           console.log("mouse down with candidate", candidate);
@@ -576,50 +578,67 @@
         }
       }
       
-      touchStart(event) {
-        if (event.touches.length > 1) {
-          
+      mouseDown(event, touchId) {
+        // if (! this.isSvgEvent(event)) { return; }
+        if (event.shiftKey) {
+          this.orienting = true;
         } else {
-          this.mouseDown(event);
-          
+          this.dragging = true;
+        }
+        let point = this.mousePosition(event);
+        this.startEvent(point, this.orienting);
+      }
+      
+      touchStart(event) {
+        if (event.touches.length > 1 && ! this.orienting) {
+          this.orienting = event.touches.filter(id => id != this.dragging)[0].identifier;
+          let point = this.mousePosition(event, this.orienting);
+          this.startEvent(point, true);
+        } else {
+          this.dragging = event.touches[0].identifier;
+          let point = this.mousePosition(event, this.dragging);
+          this.startEvent(point, false);
         }
         event.preventDefault();
       }
       
       // these events trigger when over the path object too, annoying!
-      mouseMove(event) {
+      moveEvent(point, isOrienting) {
         // if (! this.isSvgEvent(event)) { return; }
-        if (this.dragging) {
-          let point = this.mousePosition(event);
-          if (! point) {
-            return;
-          }
-          console.log("dragging");
+        if (! point) {
+          return;
+        }
+        if (! isOrienting) {
           this.setState(state => ({
             pathInProgress: state.pathInProgress ? state.pathInProgress.concat([point]) : [point],
             nextPoint: point
           }), () => this.processDrag());
-        } else if (this.orienting) {
-          let point = this.mousePosition(event);
-          if (! point) {
-            return;
-          }
+        } else {
           this.setState(state => ({
             finalOrientation: point
           }), () => this.processOrientation());
         }
       }
       
+      mouseMove(event) {
+        if (this.orienting || this.dragging) {
+          let point = this.mousePosition(event)
+          this.moveEvent(point, this.orienting);
+        }
+      }
+      
       touchMove(event) {
-        this.mouseMove(event);
+        let dragPoint = this.mousePosition(event, this.dragging);
+        this.moveEvent(dragPoint, false);
+        let orientPoint = this.mousePosition(event, this.orienting);
+        this.moveEvent(orientPoint, true);
         event.preventDefault();
       }
 
-      mouseUp(event) {
+      upEvent(point, isOrienting) {
         // if (! this.isSvgEvent(event)) { return; }
-        if (this.dragging) { 
+        if (! isOrienting) { 
           this.dragging = false;
-          let point = this.mousePosition(event);
           if (! point) {
             this.processDrag(true);
             return;
@@ -628,9 +647,8 @@
             pathInProgress: (state.pathInProgress && point) ? state.pathInProgress.concat([point]) : (point ? [point] : state.pathInProgress),
             nextPoint: point
           }), () => this.processDrag(true));
-        } else if (this.orienting) {
+        } else {
           this.orienting = false;
-          let point = this.mousePosition(event);
           if (! point) {
             this.processOrientation(true);
             return;
@@ -640,14 +658,27 @@
           }), () => this.processOrientation(true));
         }
       }
+
+      mouseUp(event) {
+        this.upEvent(this.mousePosition(event), this.orienting);
+      }
       
       mouseLeave(event) {
         this.mouseUp(event);
       }
             
       touchEnd(event) {
-        this.mouseUp(event);
+        if (this.dragging && event.nativeEvent.touches.findIndex(touch => touch.identifier == this.dragging) < 0) {
+          this.upEvent(this.mousePosition(event, this.dragging), false);
+        }
+        if (this.orienting && event.nativeEvent.touches.findIndex(touch => touch.identifier == this.orienting) < 0) {
+          this.upEvent(this.mousePosition(event, this.orienting), true);
+        }
         event.preventDefault();
+      }
+      
+      touchCancel(event) {
+        this.touchEnd(event);
       }
       
       keyDown(event) {
@@ -911,10 +942,11 @@
                     <KeyButton pressed={this.state.forcedTurn < 0} handler={this} keyChar="a" />,
                     <KeyButton pressed={this.state.forcedForward < 0} handler={this} keyChar="s" />,
                     <KeyButton pressed={this.state.forcedTurn > 0} handler={this} keyChar="d" />,
-                    <br />,
-                    <KeyButton pressed={false} handler={this} keyChar=" " text="space (stop!)" />
+                    <br />
                   ]
                 }
+                {this.state.isPaused ? <KeyButton pressed={false} handler={this} keyChar="r" text="Resume" /> : <KeyButton pressed={false} handler={this} keyChar="p" text="Pause" />} <KeyButton pressed={false} handler={this} keyChar=" " text="Stop" />
+
             </div> : ''}
           </div>
           <svg 
