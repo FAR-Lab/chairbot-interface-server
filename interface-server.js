@@ -6,22 +6,35 @@
 
 // Require the modules needed
 var express = require('express'),
-    app = express();
+    app = express(),
+    fs = require('fs');
+    
+if (! process.argv[2]) {
+  console.log(`Usage: npm start <config-file.json>`);
+  process.exit();
+}
+// console.log(process.argv);
+var config = JSON.parse(fs.readFileSync(process.argv[2]))
 
 var expressWs = require('express-ws')(app),
     bodyParser = require('body-parser'),
-    fs = require('fs'),
-    webcam = require('webcam-stream'),
     logger = require('json-logger'),
     WebSocket = require('ws'),
     BotControl = require('./bot-control');
 
-// start webcam proxy stuff
-var webcamClientServer = webcam.startWebClientServer();
-var webcamStreamServer = webcam.startStreamProxyServer(webcamClientServer);
+if (config.videoStream == "ffmpeg") {
+  // start webcam proxy stuff
+  process.env.STREAM_SECRET = "supersecret";
+  
+  var webcam = require('webcam-stream')
+  var webcamClientServer = webcam.startWebClientServer();
+  var webcamStreamServer = webcam.startStreamProxyServer(webcamClientServer);
+
+  app.use(webcam.middleware);
+}
+
 
 // Express app setup
-app.use(webcam.middleware);
 app.use(bodyParser.json());
 app.use(express.static('static'));
 app.set('port', (process.env.PORT || 5000));
@@ -45,7 +58,7 @@ app.get('/view-stream.html', function (req, res) {
 });
 
 app.get('/', function (req, res) {
-  res.sendFile('pages/main.html', {root: __dirname});
+  res.sendFile(`pages/${config.mainPage}`, {root: __dirname});
 });
 
 let controlLog = logger.named('controller');
