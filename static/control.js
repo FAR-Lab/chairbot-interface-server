@@ -625,9 +625,6 @@ class SliderToggle extends React.Component {
 class DoubleDpadViewApp extends React.Component {
   constructor(props) {
     super(props);
-    if (! restrictedFiducialId) {
-      alert("No bot specified in URL...this probably won't work! Add, e.g., '#1' to the URL and reload.");
-    }
     this.state = {
       restrictedFiducialId: restrictedFiducialId,
       forcedForward: 0,

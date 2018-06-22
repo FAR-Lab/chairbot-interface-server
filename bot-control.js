@@ -22,7 +22,7 @@ function lpad0(v, n) {
 }
 
 function connectToBot(id) {
-  const ws = new WebSocket("ws://"+(process.env['NEATO_HOST_'+id] || "neato-"+lpad0(id, 2)+".local:3000"));
+  const ws = new WebSocket("ws://" + (id === null ? "localhost" : process.env['NEATO_HOST_'+id] || "neato-"+lpad0(id, 2)+".local") + ":3000");
   ws.on('error', function() {
     console.error("NEATO socket errored out for bot", id);
   });
@@ -354,10 +354,10 @@ BotControl.prototype = {
 
 
 BotControl.for = function(id) {
-  if (id === null || id === undefined) {
+  if (id === undefined) {
     return;
   }
-  id = Number(id);
+  id = id === null ? null : Number(id);
   if (! this.controllers) {
     this.controllers = {};
   }
