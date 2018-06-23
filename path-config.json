@@ -1,0 +1,6 @@
+{
+  "config-purpose": "Overhead cam view + path control.",
+  
+  "videoStream": "ffmpeg",
+  "mainPage": "main.html"
+}

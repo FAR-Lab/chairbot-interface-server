@@ -6,22 +6,35 @@
 
 // Require the modules needed
 var express = require('express'),
-    app = express();
+    app = express(),
+    fs = require('fs');
+    
+if (! process.argv[2]) {
+  console.log(`Usage: npm start <config-file.json>`);
+  process.exit();
+}
+// console.log(process.argv);
+var config = JSON.parse(fs.readFileSync(process.argv[2]))
 
 var expressWs = require('express-ws')(app),
     bodyParser = require('body-parser'),
-    fs = require('fs'),
-    webcam = require('webcam-stream'),
     logger = require('json-logger'),
     WebSocket = require('ws'),
     BotControl = require('./bot-control');
 
-// start webcam proxy stuff
-var webcamClientServer = webcam.startWebClientServer();
-var webcamStreamServer = webcam.startStreamProxyServer(webcamClientServer);
+if (config.videoStream == "ffmpeg") {
+  // start webcam proxy stuff
+  process.env.STREAM_SECRET = "supersecret";
+  
+  var webcam = require('webcam-stream')
+  var webcamClientServer = webcam.startWebClientServer();
+  var webcamStreamServer = webcam.startStreamProxyServer(webcamClientServer);
+
+  app.use(webcam.middleware);
+}
+
 
 // Express app setup
-app.use(webcam.middleware);
 app.use(bodyParser.json());
 app.use(express.static('static'));
 app.set('port', (process.env.PORT || 5000));
@@ -45,12 +58,18 @@ app.get('/view-stream.html', function (req, res) {
 });
 
 app.get('/', function (req, res) {
-  res.sendFile('pages/main.html', {root: __dirname});
+  res.sendFile(`pages/${config.mainPage}`, {root: __dirname});
 });
 
 let controlLog = logger.named('controller');
 
 var controllers = [];
+function sendControllersUpdate(update) {
+  controllers.forEach(function(ws) {
+    ws.send(JSON.stringify(update));
+  });
+}
+
 app.ws('/web-controller', function(ws, req) {
   console.log('paths socket connected');
   controllers.push(ws);
@@ -66,16 +85,36 @@ app.ws('/web-controller', function(ws, req) {
     try {
       if (msg.action == "requestPath") {
         console.log("got path!", msg);
-        var control = BotControl.for(msg.bot);
-        control.requestPath(msg.path, msg.pathId, msg.topSpeed, msg.accel);
+        var bot = BotControl.for(msg.bot);
+        if (msg.mechanism == "orient") {
+          bot.orient(msg.finalOrientation, msg.pathId, msg.topSpeed, msg.accel);
+        } else {
+          bot.requestPath(msg.path, msg.pathId, msg.topSpeed, msg.accel, msg.mechanism == "append");          
+        }
+        let update = {
+          bots: [{
+            id: bot.botId,
+            path: bot.fractionalPath,
+            finalOrientation: bot.fractionalFinalOrientation
+          }]
+        };
+        sendControllersUpdate(update);
       } else if (msg.action == "requestForced") {
         console.log("got forced!", msg);
-        var control = BotControl.for(msg.bot);
-        control.force(msg.forward, msg.turn, msg.topSpeed, msg.accel);
+        var bot = BotControl.for(msg.bot);
+        bot.force(msg.forward, msg.turn, msg.topSpeed, msg.accel);
+        let update = {
+          bots: [{
+            id: bot.botId,
+            path: bot.fractionalPath,
+            finalOrientation: bot.fractionalFinalOrientation
+          }]
+        };
+        sendControllersUpdate(update);
       } else if (msg.action == "requestSpeed") {
         console.log("got speed!", msg);
-        var control = BotControl.for(msg.bot);
-        control.setTopSpeed(msg.topSpeed, msg.accel);
+        var bot = BotControl.for(msg.bot);
+        bot.setTopSpeed(msg.topSpeed, msg.accel);
       }
     } catch (e) {
       console.error("Unable to request path", msg, e);
@@ -113,23 +152,22 @@ app.ws('/bot-updates', function(ws, req) {
       console.error("Failed to process message updates", msg, e);
       return;
     }
-    let updates = {
+    let update = {
       bots: BotControl.all().map(function(bot) {
               return {
                 id: bot.botId,
                 location: bot.fractionalLocation,
                 path: bot.fractionalPath,
                 nextAction: bot.nextAction(),
+                finalOrientation: bot.fractionalFinalOrientation,
                 // topSpeed: bot.topSpeed
               };
             }),
       frame: msg.size
     };
-//    console.log("got updates", updates);
+    // console.log("got updates", updates);
     
-    controllers.forEach(function(ws) {
-      ws.send(JSON.stringify(updates));
-    });
+    sendControllersUpdate(update);
   });
 });
 

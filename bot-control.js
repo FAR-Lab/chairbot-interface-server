@@ -22,7 +22,7 @@ function lpad0(v, n) {
 }
 
 function connectToBot(id) {
-  const ws = new WebSocket("ws://"+(process.env['NEATO_HOST_'+id] || "neato-"+lpad0(id, 2)+".local:3000"));
+  const ws = new WebSocket("ws://" + (id === null ? "localhost" : process.env['NEATO_HOST_'+id] || "neato-"+lpad0(id, 2)+".local") + ":3000");
   ws.on('error', function() {
     console.error("NEATO socket errored out for bot", id);
   });
@@ -45,6 +45,7 @@ function dist(x1, y1, x2, y2) {
   return Math.sqrt(Math.pow(x2-x1, 2) + Math.pow(y2-y1, 2));
 }
 
+// lack of frequent updates causes rapid magnificaiton of error. don't use this for now.
 var USE_GUESSED_UPDATES = false;
 
 // mm or mm/sec
@@ -61,12 +62,14 @@ var ANGULAR_ACCEL = 6;
 var PROP_ANGLE_STEP = 1;
 var RAD_ERR = 0.8;
 var RAD_DEAD = 0.4;
+var RAD_FINAL = 0.01;
 var DIST_ERR = BASE_DIAMETER;
 
 function BotControl(botId, skipConnection) {
   this.location = null;
   this.fractionalLocation = null;
   this.path = [];
+  this.finalOrientation = null;
   this.speed = 0;
   this.topSpeed = TOP_SPEED;
   this.angularSpeed = 0;
@@ -74,6 +77,7 @@ function BotControl(botId, skipConnection) {
   this.accel = ACCEL;
   this.angularAccel = ANGULAR_ACCEL;
   this.lastUpdate = Date.now();
+  this.frameSize = {width: 640, height: 480}; // temporary. gets replaced with first location update.
   
   this.botId = botId;
   
@@ -88,8 +92,8 @@ BotControl.prototype = {
       delete this.missedUpdateTimer;
     }
     this.frameSize = frameSize;
-    // [{x: x1, y: y1}, .. {x: x4, y: y4}] for four corners of bot fiducial
-      
+    
+    // [{x: x1, y: y1}, .. {x: x4, y: y4}] for four corners of bot fiducial  
     this.fractionalLocation = location;
     this.location = location.map(function(pt) { return { x: pt.x*frameSize.width, y: pt.y*frameSize.height }; }); 
     this.centerPt = centerOf(this.location);
@@ -131,17 +135,33 @@ BotControl.prototype = {
     // console.log("guessed update!", fractionalLocation);
   },
   
-  requestPath(path, id, topSpeed, accel) {
+  requestPath(path, id, topSpeed, accel, append) {
     let frameSize = this.frameSize;
     console.log("path requested for bot", this.botId, "path is", path);
-    this.fractionalPath = path;
-    this.path = path.map(function(pt) { return { x: pt.x*frameSize.width, y: pt.y*frameSize.height }; }); 
+    if (append) {
+      this.fractionalPath = (this.fractionalPath || []).concat(path)
+    } else {
+      this.fractionalPath = path;      
+    }
+    this.finalOrientation = null;
+    this.fractionalFinalOrientation = null;
+    console.log("new path for bot", this.botId, "is", this.fractionalPath);
+    this.path = this.fractionalPath.map(function(pt) { return { x: pt.x*frameSize.width, y: pt.y*frameSize.height }; }); 
     this.pathid = id;
     this.setTopSpeed(topSpeed, accel);
     delete this.forcedMotion;
     this.updateActions();
     
     console.log("path is now", this.path);
+  },
+  
+  orient(finalOrientation, id, topSpeed, accel) {
+    let frameSize = this.frameSize;
+    console.log("final orientation for bot", this.botId, "orientation is", finalOrientation);
+    this.fractionalFinalOrientation = finalOrientation;
+    this.finalOrientation = { x: finalOrientation.x*frameSize.width, y: finalOrientation.y*frameSize.height };
+    this.setTopSpeed(topSpeed, accel);
+    this.updateActions();
   },
 
   forcedTimeLeft() { // millis
@@ -155,6 +175,8 @@ BotControl.prototype = {
   force(fwd, turn, topSpeed, accel) {
     this.path = [];
     this.fractionalPath = [];
+    this.finalOrientation = null;
+    this.fractionalFinalOrientation = null;
     this.forcedMotion = {
       forward: fwd,
       turn: turn,
@@ -182,11 +204,19 @@ BotControl.prototype = {
     return dist(from.x, from.y, to.x, to.y) / this.pixelsPerMm;
   },
   
+  angleTo(toPoint) {
+    return Math.atan2(toPoint.y - this.centerPt.y, toPoint.x - this.centerPt.x);
+  },
+  
   updateActions() {
-    while(this.path.length > 0 && this.distance(this.path[0], this.centerPt) < BASE_DIAMETER) {
+    while(this.path.length > 0 && this.distance(this.path[0], this.centerPt) < BASE_DIAMETER/1.5) { // 1.5: just a little bit of wiggle room
       console.log("skipping point", this.path[0], "distance", this.distance(this.path[0], this.centerPt));
       this.path.shift();
       this.fractionalPath.shift();
+    }
+    if (this.finalOrientation && Math.abs(this.angleTo(this.finalOrientation)) < RAD_FINAL) {
+      delete this.finalOrientation;
+      delete this.fractionalFinalOrientation;
     }
     this.pathDistanceRemaining = this.path.reduce((p, c) => (
       { to: c, distanceSoFar: p.distanceSoFar + this.distance(p.to, c) }
@@ -210,11 +240,11 @@ BotControl.prototype = {
       this.targetAngularSpeed = this.forcedMotion.turn * this.topAngularSpeed;
       return;
     }
-    if (! this.nextTarget) {
+    if (! this.nextTarget && ! this.finalOrientation) {
       this.targetAngularSpeed = 0;
       return;
     }
-    this.targetAngle = Math.atan2(this.nextTarget.y - this.centerPt.y, this.nextTarget.x - this.centerPt.x);
+    this.targetAngle = this.angleTo(this.nextTarget || this.finalOrientation);
 
     var ad = angleDiff(this.angle, this.targetAngle);
     var absad = Math.abs(ad);
@@ -324,10 +354,10 @@ BotControl.prototype = {
 
 
 BotControl.for = function(id) {
-  if (id === null || id === undefined) {
+  if (id === undefined) {
     return;
   }
-  id = Number(id);
+  id = id === null ? null : Number(id);
   if (! this.controllers) {
     this.controllers = {};
   }

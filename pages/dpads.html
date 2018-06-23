@@ -1,9 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width,user-scalable=no">
   <style>
     body {
       font-family: "Helvetica Neue", sans-serif;
+      font-size: 9pt;
     }
     #camera-frame {
       position: absolute;
@@ -23,6 +26,7 @@
       left: 0;
       height: 100%;
       width: 100%;
+      background: black;
     }
         
     .buttons {
@@ -30,16 +34,23 @@
       width: 250px;
       text-align: center;
       position: absolute;
-      top: 10;
+      top: 50%;
+      transform: translateY(-50%);
       left: 0;
       background: rgba(255, 255, 255, 0.5);
       opacity: 1.0;
       padding: 0;
-      border-radius: 0 0 20px 0;
+      border-radius: 0 20px 20px 0;
     }
     
     .buttons.double {
       /* width: 500px; */
+    }
+    
+    .buttons.right {
+      right: 0;
+      left: auto;
+      border-radius: 20px 0 0 20px;
     }
     
     .double .info {
@@ -90,16 +101,16 @@
   </head>
 <body>
   <iframe id="camera-frame"></iframe>
-  <script type="text/javascript">
+  <!-- <script type="text/javascript">
     var camera = document.getElementById('camera-frame');
     camera.src = "/view-stream.html"
-  </script>
+  </script> -->
   <div id="root"><!-- react root --></div>
   
   <script type="text/babel" src="control.js"></script>
   <script type="text/babel">
     $(function() {
-      ReactDOM.render(<DragViewApp />, document.getElementById('root'));
+      ReactDOM.render(<DoubleDpadViewApp />, document.getElementById('root'));
     });
   </script>
 </body>
