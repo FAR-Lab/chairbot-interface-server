@@ -235,39 +235,23 @@ function sigfig(v, n) {
   return Math.round(v * factor) / factor;
 }
 
-class SpeedDragTarget extends React.Component {
-  constructor(props) {
-    super(props);
-    this.targetWidth = 40;
-    this.innerRadius = 40;
-    this.outerRadius = 10;
+class TouchTargetEventHandler {
+  constructor(target) {
+    this.target = target;
   }
   
   mousePosition(event) {
     if (! ('pageX' in event) && ! (event.nativeEvent.touches.length > 0)) {
       return null;
     }
-    let bounds = ReactDOM.findDOMNode(this.svg).getBoundingClientRect();
+    let bounds = ReactDOM.findDOMNode(this.target.svg).getBoundingClientRect();
     console.log(bounds);
     return {
       x: ('pageX' in event ? event.pageX - bounds.x : this.currentTouch(event).pageX - bounds.x) / bounds.width, 
       y: ('pageY' in event ? event.pageY - bounds.y : this.currentTouch(event).pageY - bounds.y) / bounds.height
     }
   }
-  
-  updateCommand(event) {
-    let {deadZones, angleZones} = this;
-    let bounds = ReactDOM.findDOMNode(this.svg).getBoundingClientRect();
-    let pos = this.mousePosition(event);
-    if (pos) {
-      console.log("Force Drag at", pos);
-      // let d = distance(pos, {x: 0.5, y: 0.5});
-      var speed = Math.max(Math.min((-pos.y + 0.5) / (this.innerRadius/bounds.height), 1), -1);
 
-      this.props.update(speed);
-    }
-  }
-  
   currentTouch(event) {
     var touches = event.nativeEvent.touches;
     for (var i = 0; i < touches.length; i++) {
@@ -279,7 +263,7 @@ class SpeedDragTarget extends React.Component {
   
   mouseDown(event) {
     this.isDown = true;
-    this.updateCommand(event);
+    this.target.updateCommand(event);
   }
   touchStart(event) {
     if (event.nativeEvent.touches) {
@@ -290,7 +274,7 @@ class SpeedDragTarget extends React.Component {
   }
   mouseMove(event) {
     if (this.isDown) {
-      this.updateCommand(event);
+      this.target.updateCommand(event);
     }
   }
   touchMove(event) {
@@ -299,7 +283,7 @@ class SpeedDragTarget extends React.Component {
   }
   mouseUp(event) {
     this.isDown = false;
-    this.props.update(0);
+    this.target.zeroCommand(0);
   }
   mouseLeave(event) {
     if (this.isDown) {
@@ -311,6 +295,47 @@ class SpeedDragTarget extends React.Component {
     event.preventDefault();
   }
   
+  get handlers() {
+    return {
+      onMouseDown:   this.mouseDown .bind(this),
+      onTouchStart:  this.touchStart.bind(this),
+      onMouseMove:   this.mouseMove .bind(this),
+      onTouchMove:   this.touchMove .bind(this),
+      onMouseUp:     this.mouseUp   .bind(this),
+      onMouseLeave:  this.mouseLeave.bind(this),
+      onTouchEnd:    this.touchEnd  .bind(this),
+      onTouchCancel: this.touchEnd  .bind(this)
+    };
+  }
+}
+
+class SpeedDragTarget extends React.Component {
+  constructor(props) {
+    super(props);
+    this.targetWidth = 40;
+    this.innerRadius = 40;
+    this.outerRadius = 10;
+    
+    this.eventHandler = new TouchTargetEventHandler(this);
+  }
+  
+  updateCommand(event) {
+    let {deadZones, angleZones} = this;
+    let bounds = ReactDOM.findDOMNode(this.svg).getBoundingClientRect();
+    let pos = this.eventHandler.mousePosition(event);
+    if (pos) {
+      console.log("Force Drag at", pos);
+      // let d = distance(pos, {x: 0.5, y: 0.5});
+      var speed = Math.max(Math.min((-pos.y + 0.5) / (this.innerRadius/bounds.height), 1), -1);
+
+      this.props.update(speed);
+    }
+  }
+  
+  zeroCommand() {
+    this.props.update(0);
+  }
+  
   render() {
     let {targetWidth, innerRadius, outerRadius} = this;
     let r = innerRadius + outerRadius;
@@ -320,11 +345,9 @@ class SpeedDragTarget extends React.Component {
       <path d={`M 0 0 L${pt(r, -targetWidth/2)} A${r} ${r} 0 0 0 ${pt(r, targetWidth/2)} z`} fill="darkgreen" stroke="white" strokeWidth="2"/>
       <path d={`M 0 0 L${pt(r, 180-targetWidth/2)} A${r} ${r} 0 0 0 ${pt(r, 180+targetWidth/2)} z`} fill="darkred" stroke="white" strokeWidth="2"/>
 
-
       <path d={`M 0 0 L${pt(ir, -targetWidth/2)} A${r} ${r} 0 0 0 ${pt(ir, targetWidth/2)} z`} fill="green" stroke="white" strokeWidth="2"/>
       <path d={`M 0 0 L${pt(ir, 180-targetWidth/2)} A${r} ${r} 0 0 0 ${pt(ir, 180+targetWidth/2)} z`} fill="red" stroke="white" strokeWidth="2"/>
     </g>
-    
     
     return <div>
       <svg 
@@ -333,14 +356,7 @@ class SpeedDragTarget extends React.Component {
           viewBox={`${-(r+2)} ${-(r+2)} ${2*(r+2)} ${2*(r+2)}`}
           preserveAspectRatio="none"
           ref={(ref) => this.svg = ref}
-          onMouseDown=  {this.mouseDown .bind(this)}
-          onTouchStart= {this.touchStart.bind(this)}
-          onMouseMove=  {this.mouseMove .bind(this)}
-          onTouchMove=  {this.touchMove .bind(this)}
-          onMouseUp=    {this.mouseUp   .bind(this)}
-          onMouseLeave= {this.mouseLeave.bind(this)} 
-          onTouchEnd=   {this.touchEnd  .bind(this)}
-          onTouchCancel={this.touchEnd  .bind(this)} >
+          {...this.eventHandler.handlers} >
         {segments}
       </svg>
       <p>Speed: {sigfig(this.props.forcedForward, 2)} — Turn: {sigfig(this.props.forcedTurn, 2)}</p>
@@ -355,24 +371,14 @@ class TurnDragTarget extends React.Component {
     this.targetWidth = 40;
     this.innerRadius = 40;
     this.outerRadius = 10;
-  }
-  
-  mousePosition(event) {
-    if (! ('pageX' in event) && ! (event.nativeEvent.touches.length > 0)) {
-      return null;
-    }
-    let bounds = ReactDOM.findDOMNode(this.svg).getBoundingClientRect();
-    console.log(bounds);
-    return {
-      x: ('pageX' in event ? event.pageX - bounds.x : this.currentTouch(event).pageX - bounds.x) / bounds.width, 
-      y: ('pageY' in event ? event.pageY - bounds.y : this.currentTouch(event).pageY - bounds.y) / bounds.height
-    }
+    
+    this.eventHandler = new TouchTargetEventHandler(this);
   }
   
   updateCommand(event) {
     let {deadZones, angleZones} = this;
     let bounds = ReactDOM.findDOMNode(this.svg).getBoundingClientRect();
-    let pos = this.mousePosition(event);
+    let pos = this.eventHandler.mousePosition(event);
     if (pos) {
       console.log("Force Drag at", pos);
       // let d = distance(pos, {x: 0.5, y: 0.5});
@@ -382,47 +388,8 @@ class TurnDragTarget extends React.Component {
     }
   }
   
-  currentTouch(event) {
-    var touches = event.nativeEvent.touches;
-    for (var i = 0; i < touches.length; i++) {
-      if (touches[i].identifier == this.touch) {
-        return touches[i];
-      }
-    }
-  }
-  
-  mouseDown(event) {
-    this.isDown = true;
-    this.updateCommand(event);
-  }
-  touchStart(event) {
-    if (event.nativeEvent.touches) {
-      this.touch = event.nativeEvent.touches[event.nativeEvent.touches.length-1].identifier;
-    }
-    this.mouseDown(event);
-    event.preventDefault();
-  }
-  mouseMove(event) {
-    if (this.isDown) {
-      this.updateCommand(event);
-    }
-  }
-  touchMove(event) {
-    this.mouseMove(event);
-    event.preventDefault();        
-  }
-  mouseUp(event) {
-    this.isDown = false;
+  zeroCommand() {
     this.props.update(0);
-  }
-  mouseLeave(event) {
-    if (this.isDown) {
-      this.mouseUp(event);
-    }
-  }
-  touchEnd(event) {
-    this.mouseUp(event);
-    event.preventDefault();
   }
   
   render() {
@@ -447,14 +414,7 @@ class TurnDragTarget extends React.Component {
           viewBox={`${-(r+2)} ${-(r+2)} ${2*(r+2)} ${2*(r+2)}`}
           preserveAspectRatio="none"
           ref={(ref) => this.svg = ref}
-          onMouseDown=  {this.mouseDown .bind(this)}
-          onTouchStart= {this.touchStart.bind(this)}
-          onMouseMove=  {this.mouseMove .bind(this)}
-          onTouchMove=  {this.touchMove .bind(this)}
-          onMouseUp=    {this.mouseUp   .bind(this)}
-          onMouseLeave= {this.mouseLeave.bind(this)} 
-          onTouchEnd=   {this.touchEnd  .bind(this)}
-          onTouchCancel={this.touchEnd  .bind(this)} >
+          {...this.eventHandler.handlers} >
         {segments}
       </svg>
     </div>
@@ -468,24 +428,14 @@ class ForceDragTarget extends React.Component {
     this.angleZones = 160;
     this.innerRadius = 40;
     this.outerRadius = 10;
-  }
-  
-  mousePosition(event) {
-    if (! ('pageX' in event) && ! (event.nativeEvent.touches.length > 0)) {
-      return null;
-    }
-    let bounds = ReactDOM.findDOMNode(this.svg).getBoundingClientRect();
-    console.log(bounds);
-    return {
-      x: ('pageX' in event ? event.pageX - bounds.x : event.nativeEvent.touches[0].pageX - bounds.x) / bounds.width, 
-      y: ('pageY' in event ? event.pageY - bounds.y : event.nativeEvent.touches[0].pageY - bounds.y) / bounds.height
-    }
+    
+    this.eventHandler = new TouchTargetEventHandler(this);
   }
   
   updateCommand(event) {
     let {deadZones, angleZones} = this;
     let bounds = ReactDOM.findDOMNode(this.svg).getBoundingClientRect();
-    let pos = this.mousePosition(event);
+    let pos = this.eventHandler.mousePosition(event);
     if (pos) {
       console.log("Force Drag at", pos);
       // let d = distance(pos, {x: 0.5, y: 0.5});
@@ -511,35 +461,8 @@ class ForceDragTarget extends React.Component {
     }
   }
   
-  mouseDown(event) {
-    this.isDown = true;
-    this.updateCommand(event);
-  }
-  touchStart(event) {
-    this.mouseDown(event);
-    event.preventDefault();
-  }
-  mouseMove(event) {
-    if (this.isDown) {
-      this.updateCommand(event);
-    }
-  }
-  touchMove(event) {
-    this.mouseMove(event);
-    event.preventDefault();        
-  }
-  mouseUp(event) {
-    this.isDown = false;
+  zeroCommand() {
     this.props.update(0, 0);
-  }
-  mouseLeave(event) {
-    if (this.isDown) {
-      this.mouseUp(event);
-    }
-  }
-  touchEnd(event) {
-    this.mouseUp(event);
-    event.preventDefault();
   }
   
   render() {
@@ -563,7 +486,6 @@ class ForceDragTarget extends React.Component {
       <path d={`M 0 0 L${pt(ir, 180-angleZones/2)} A${r} ${r} 0 0 0 ${pt(ir, 180-deadZones/2)} z`} fill="#55f" stroke="white" strokeWidth="2"/>
       <path d={`M 0 0 L${pt(ir, -angleZones/2)} A${r} ${r} 0 0 0 ${pt(ir, -deadZones/2)} z`} fill="#55f" stroke="white" strokeWidth="2"/>
       <path d={`M 0 0 L${pt(ir, -180+deadZones/2)} A${r} ${r} 0 0 0 ${pt(ir, -180+angleZones/2)} z`} fill="#55f" stroke="white" strokeWidth="2"/>
-
     </g>
     
     
@@ -574,14 +496,7 @@ class ForceDragTarget extends React.Component {
           viewBox={`${-(innerRadius+outerRadius+2)} ${-(innerRadius+outerRadius+2)} ${2*(innerRadius+outerRadius+2)} ${2*(innerRadius+outerRadius+2)}`}
           preserveAspectRatio="none"
           ref={(ref) => this.svg = ref}
-          onMouseDown=  {this.mouseDown .bind(this)}
-          onTouchStart= {this.touchStart.bind(this)}
-          onMouseMove=  {this.mouseMove .bind(this)}
-          onTouchMove=  {this.touchMove .bind(this)}
-          onMouseUp=    {this.mouseUp   .bind(this)}
-          onMouseLeave= {this.mouseLeave.bind(this)} 
-          onTouchEnd=   {this.touchEnd  .bind(this)}
-          onTouchCancel={this.touchEnd  .bind(this)} >
+          {...this.eventHandler.handlers} >
         {segments}
       </svg>
       <p>Speed: {sigfig(this.props.forcedForward, 2)} — Turn: {sigfig(this.props.forcedTurn, 2)}</p>
