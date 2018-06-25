@@ -2,5 +2,6 @@
   "config-purpose": "Overhead cam view + path control.",
   
   "videoStream": "ffmpeg",
-  "mainPage": "main.html"
+  "mainPage": "main.html",
+  "tracking": true
 }

@@ -33,6 +33,10 @@ if (config.videoStream == "ffmpeg") {
   app.use(webcam.middleware);
 }
 
+if (config.tracking === false) {
+  BotControl.tracking = false;
+}
+
 
 // Express app setup
 app.use(bodyParser.json());

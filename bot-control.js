@@ -82,10 +82,23 @@ function BotControl(botId, skipConnection) {
   this.botId = botId;
   
   if (! skipConnection) {
-    this.socket = connectToBot(botId);
+    this.connect();
+  }
+  if (BotControl.tracking === false) {
+    this.trackingInterval = setInterval(this.updateActions.bind(this), 50);
   }
 }
 BotControl.prototype = {
+  connect() {
+    this.socket = connectToBot(this.botId);
+    var self = this;
+    this.socket.on('close', function() {
+      console.log("connection to bot", self.botId, "closed...");
+      self.socket = null;
+      setTimeout(self.connect.bind(self), 1000)
+    });    
+  },
+  
   noteLocation(location, frameSize) {
     if (USE_GUESSED_UPDATES && this.missedUpdateTimer) {
       clearTimeout(this.missedUpdateTimer);
@@ -228,6 +241,7 @@ BotControl.prototype = {
     this.updateSpeeds();
     
     if (this.forcedMotion && this.forcedTimeLeft() <= 0) { // no time left
+      console.log("no time left, deleting forced motion");
       delete this.forcedMotion;
     }
     
@@ -308,6 +322,7 @@ BotControl.prototype = {
   
   sendCommand(obj) {
     if (this.socket) {
+      // console.log("sending action", obj);
       try {
         this.socket.send(JSON.stringify(obj));
       } catch (e) {
