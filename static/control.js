@@ -382,7 +382,7 @@ class TurnDragTarget extends React.Component {
     if (pos) {
       console.log("Force Drag at", pos);
       // let d = distance(pos, {x: 0.5, y: 0.5});
-      var turn = Math.max(Math.min((-pos.x + 0.5) / (this.innerRadius/bounds.height), 1), -1);
+      var turn = Math.max(Math.min((pos.x - 0.5) / (this.innerRadius/bounds.height), 1), -1);
 
       this.props.update(turn);
     }
