@@ -271,6 +271,7 @@ class TouchTargetEventHandler {
     }
     this.mouseDown(event);
     event.preventDefault();
+    return false;
   }
   mouseMove(event) {
     if (this.isDown) {
@@ -279,7 +280,8 @@ class TouchTargetEventHandler {
   }
   touchMove(event) {
     this.mouseMove(event);
-    event.preventDefault();        
+    event.preventDefault();
+    return false;
   }
   mouseUp(event) {
     this.isDown = false;
@@ -293,6 +295,7 @@ class TouchTargetEventHandler {
   touchEnd(event) {
     this.mouseUp(event);
     event.preventDefault();
+    return false;
   }
   
   get handlers() {
@@ -531,7 +534,7 @@ class SliderToggle extends React.Component {
       top: toggleStyle.height * 0.05,
       transition: "left 0.25s ease-in-out 0"
     }
-    return <span style={toggleStyle} onMouseDown={() => this.mouseDown()} onTouchStart={(event) => {this.mouseDown(); event.preventDefault();}}>
+    return <span style={toggleStyle} onMouseDown={() => this.mouseDown()} onTouchEnd={(event) => event.preventDefault()} onTouchStart={(event) => {this.mouseDown(); event.preventDefault();}}>
         <span style={sliderStyle} />
       </span>
   }
@@ -791,35 +794,32 @@ class DoubleDpadViewApp extends React.Component {
           <KeyButton pressed={this.state.accelKeyPressed} handler={this} keyChar="}" />
         </p>
         <div className="keyGroup">
-          {isMobile ? 
+          <p><strong>Control Style</strong><br />
+            Digital 
+              <SliderToggle 
+                toggle={() => this.setState(state => {return {analogControls: ! state.analogControls}; })}
+                toggled={this.state.analogControls} /> 
+              Analog<br />
+          </p>
+          {this.state.analogControls ? 
             <div>
-              <SpeedDragTarget forcedForward={this.state.forcedForward} forcedTurn={this.state.forcedTurn} update={this.setForcedForward.bind(this)}/>
-            </div> : [
-              <p><strong>Control Style</strong><br />
-                Digital 
-                  <SliderToggle 
-                    toggle={() => this.setState(state => {return {analogControls: ! state.analogControls}; })}
-                    toggled={this.state.analogControls} /> 
-                  Analog<br />
-              </p>,
-              this.state.analogControls ? 
-                <div>
-                  <ForceDragTarget forcedForward={this.state.forcedForward} forcedTurn={this.state.forcedTurn} update={this.setForced.bind(this)}/>
-                </div> :
-                [ <KeyButton pressed={this.state.forcedForward > 0} handler={this} keyChar="w" />,
-                  <br />,
-                  <KeyButton pressed={this.state.forcedTurn < 0} handler={this} keyChar="a" />,
-                  <KeyButton pressed={this.state.forcedForward < 0} handler={this} keyChar="s" />,
-                  <KeyButton pressed={this.state.forcedTurn > 0} handler={this} keyChar="d" />,
-                  <br />,
-                  <br />,
-                  <br />,
-                  <br />,
-                  <br />,
-                  <br />
-                ]
-              
-            ]            
+              {isMobile 
+                ? <SpeedDragTarget forcedForward={this.state.forcedForward} forcedTurn={this.state.forcedTurn} update={this.setForcedForward.bind(this)}/>
+                : <ForceDragTarget forcedForward={this.state.forcedForward} forcedTurn={this.state.forcedTurn} update={this.setForced.bind(this)}/>
+              }
+            </div> :
+            [ <br />,
+              <KeyButton pressed={this.state.forcedForward > 0} handler={this} keyChar="w" />,
+              <br />,
+              <KeyButton pressed={this.state.forcedTurn < 0} handler={this} keyChar="a" />,
+              <KeyButton pressed={this.state.forcedForward < 0} handler={this} keyChar="s" />,
+              <KeyButton pressed={this.state.forcedTurn > 0} handler={this} keyChar="d" />,
+              <br />,
+              <br />,
+              <br />,
+              <br />,
+              <br />
+            ]
           }
         </div>
       </div>
@@ -937,6 +937,7 @@ class DragViewApp extends React.Component {
       this.startEvent(point, false);
     }
     event.preventDefault();
+    return false;
   }
   
   // these events trigger when over the path object too, annoying!
@@ -970,6 +971,7 @@ class DragViewApp extends React.Component {
     let orientPoint = this.mousePosition(event, this.orienting);
     this.moveEvent(orientPoint, true);
     event.preventDefault();
+    return false;
   }
 
   upEvent(point, isOrienting) {
@@ -1014,10 +1016,11 @@ class DragViewApp extends React.Component {
       this.upEvent(this.mousePosition(event, this.orienting), true);
     }
     event.preventDefault();
+    return false;
   }
   
   touchCancel(event) {
-    this.touchEnd(event);
+    return this.touchEnd(event);
   }
   
   keyDown(event) {
