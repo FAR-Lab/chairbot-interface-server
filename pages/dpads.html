@@ -16,7 +16,7 @@
       font-size: 9pt;
       overflow: hidden;
     }
-    #camera-frame {
+    #camera {
       position: absolute;
       margin: 0;
       padding: 0;
@@ -106,13 +106,10 @@
   <script src="react-dom.development.js"></script>
   <script src="babel.min.js"></script>
   <script src="jquery-3.2.1.js"></script>
+  <script src="uv4l-signaling.js"></script>
   </head>
 <body>
-  <iframe id="camera-frame"></iframe>
-  <!-- <script type="text/javascript">
-    var camera = document.getElementById('camera-frame');
-    camera.src = "/view-stream.html"
-  </script> -->
+  <video id="camera" muted autoplay playsinline></video>
   <div id="root"><!-- react root --></div>
   
   <script type="text/babel" src="control.js"></script>

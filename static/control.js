@@ -761,6 +761,28 @@ class DoubleDpadViewApp extends React.Component {
     sendSpeed(this.state.restrictedFiducialId, this.state.topSpeed, this.state.accel);
   }
   
+  connectCameraBackground() {
+    var video = document.getElementById('camera');
+    
+    var protocol = location.protocol === "https:" ? "wss:" : "ws:";
+    var wsurl = protocol + '//' + location.host + '/webrtc'
+    
+    if (! this.isStreaming) {
+      this.signalObj = new signal(wsurl,
+        (stream) => { console.log('got a stream!', stream); video.srcObject = stream; },
+        (error) => { alert(error); },
+        () => { console.log("websocket closed."); video.srcObject = null; this.isStreaming = false },
+        (message) => { alert(message); });
+    }
+  }
+  
+  componentDidMount() {
+    this.connectCameraBackground();
+    
+    var video = document.getElementById('camera');
+    video.addEventListener('canplay', (e) => { this.isStreaming = true; });
+  }
+  
   render() {
     let pathInProgress = this.state.pathInProgress;
     if (pathInProgress && this.state.candidate) {
