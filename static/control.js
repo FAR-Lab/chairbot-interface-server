@@ -765,7 +765,7 @@ class DoubleDpadViewApp extends React.Component {
     var video = document.getElementById('camera');
     
     var protocol = location.protocol === "https:" ? "wss:" : "ws:";
-    var wsurl = protocol + '//' + location.host + '/webrtc'
+    var wsurl = protocol + '//' + location.hostname + ':8888/webrtc'
     
     if (! this.isStreaming) {
       this.signalObj = new signal(wsurl,
