@@ -549,7 +549,8 @@ class DoubleDpadViewApp extends React.Component {
       forcedTurn: 0,
       topSpeed: 50,
       accel: 300,
-      analogControls: true
+      analogControls: true,
+      message: null
     }
 
     this.forcedTimer = setInterval(() => this.checkAndSendForce(), 250);
@@ -761,6 +762,12 @@ class DoubleDpadViewApp extends React.Component {
     sendSpeed(this.state.restrictedFiducialId, this.state.topSpeed, this.state.accel);
   }
   
+  message(msg) {
+    this.setState({
+      message: msg
+    });
+  }
+  
   connectCameraBackground() {
     var video = document.getElementById('camera');
     
@@ -770,9 +777,9 @@ class DoubleDpadViewApp extends React.Component {
     if (! this.isStreaming) {
       this.signalObj = new signal(wsurl,
         (stream) => { console.log('got a stream!', stream); video.srcObject = stream; },
-        (error) => { alert(error); },
-        () => { console.log("websocket closed."); video.srcObject = null; this.isStreaming = false },
-        (message) => { alert(message); });
+        (error) => { this.message(error); },
+        () => { this.message("Video channel closed."); console.log("websocket closed."); video.srcObject = null; this.isStreaming = false },
+        (message) => { this.message(message); });
     }
   }
   
@@ -804,6 +811,7 @@ class DoubleDpadViewApp extends React.Component {
     return <div tabIndex="0"
         onKeyDown={this.keyDown.bind(this)}
         onKeyUp={this.keyUp.bind(this)} >
+      <MessageBox message={this.state.message} />
       <div className={"buttons"}>
         <p className="info">
           Top Speed: <strong>{Math.round(this.state.topSpeed*10)/10}</strong><br />
@@ -852,6 +860,13 @@ class DoubleDpadViewApp extends React.Component {
       }
     </div>
   }
+}
+
+function MessageBox(props) {
+  if (! props.message) {
+    return "";
+  }
+  return <div className="messagebox">{props.message}</div>
 }
 
 class DragViewApp extends React.Component {
