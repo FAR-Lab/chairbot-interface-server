@@ -1,5 +1,5 @@
 {
-  "config-purpose": "Overhead cam view + path control.",
+  "config-purpose": "Local camera view + dpad control.",
   
   "videoStream": "local",
   "mainPage": "dpads.html",
