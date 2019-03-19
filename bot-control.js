@@ -348,8 +348,8 @@ BotControl.prototype = {
       var rightDistance = rightSpeed * ASSUMED_TIMESTEP;      
 
       return {
-        left: isStopped && ! this.isStopped ? -1 : -rightDistance,
-        right: isStopped && ! this.isStopped ? -1 : -leftDistance,
+        left: isStopped && ! this.isStopped ? 0 : -rightDistance,
+        right: isStopped && ! this.isStopped ? 0 : -leftDistance,
         speed: isStopped ? 0 : Math.min(Math.max(Math.abs(leftSpeed), Math.abs(rightSpeed)), 300),
         accel: this.accel
       }
