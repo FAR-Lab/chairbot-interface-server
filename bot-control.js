@@ -337,8 +337,8 @@ BotControl.prototype = {
       var rightSpeed = this.speed;
       
       var angularSpeed = this.angularSpeed * BASE_DIAMETER/2;
-      leftSpeed += angularSpeed;
-      rightSpeed -= angularSpeed;
+      leftSpeed -= angularSpeed;
+      rightSpeed += angularSpeed;
 
       // console.log("getting action!", this.speed, angularSpeed, leftSpeed, rightSpeed);
 	
