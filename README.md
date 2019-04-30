@@ -1,4 +1,4 @@
-# neato-server
+# ChairBot-interface-server
 
 Server that receives path from interface and sends to neato; also runs webcam proxy to send video from ffmpeg to web clients.
 
@@ -6,7 +6,7 @@ To run:
 
 `$ npm start <config file>`
   
-There are two provided config files: `path-config.json` and `local-config.json`. In both cases, you should also run the [NeatoPi](//github.com/CDR-IxD/NeatoPi) scripts on the Raspberry Pi for each neato chairbot.
+There are two provided config files: `path-config.json` and `local-config.json`. In both cases, you should also run motor control code on the Raspberry Pi for each chairbot -- either the [NeatoPi](//github.com/CDR-IxD/NeatoPi) server for Neato-based chairbots, of the [chairbot-motor-websocket-proxy](//github.com/FAR-Lab/chairbot-motor-websocket-proxy) for the Hoverboard-based chairbots.
 
 ### path-config
 
@@ -18,4 +18,6 @@ You'll also want to run the [aruco tracking server](//github.com/CDR-IxD/aruco-m
 
 ### local-config
 
-This mode provides a WASD-style analog control option hosted on the raspberry pi directly. Run neato-pi in addition to this server.
+This mode provides a WASD-style analog (and digital) control options hosted on the raspberry pi directly. To run in this mode, you'll also need to run the the [chairbot motor websocket proxy](//github.com/FAR-Lab/chairbot-motor-websocket-proxy) that proxies messages from this interface server to the firmware for your motor drive.
+
+
