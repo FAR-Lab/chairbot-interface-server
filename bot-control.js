@@ -340,8 +340,8 @@ BotControl.prototype = {
       var rightSpeed = this.speed;
       
       var angularSpeed = this.angularSpeed * BASE_DIAMETER/2;
-      leftSpeed += angularSpeed;
-      rightSpeed -= angularSpeed;
+      leftSpeed -= angularSpeed;
+      rightSpeed += angularSpeed;
 
       // console.log("getting action!", this.speed, angularSpeed, leftSpeed, rightSpeed);
 	
@@ -351,8 +351,8 @@ BotControl.prototype = {
       var rightDistance = rightSpeed * ASSUMED_TIMESTEP;      
 
       return {
-        left: isStopped && ! this.isStopped ? 0 : -rightDistance,
-        right: isStopped && ! this.isStopped ? 0 : -leftDistance,
+        left: isStopped && ! this.isStopped ? 0 : leftSpeed,
+        right: isStopped && ! this.isStopped ? 0 : rightSpeed,
         speed: isStopped ? 0 : Math.min(Math.max(Math.abs(leftSpeed), Math.abs(rightSpeed)), 300),
         accel: this.accel
       }
