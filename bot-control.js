@@ -303,18 +303,21 @@ BotControl.prototype = {
     var now = Date.now();
     var dt = (now - this.lastUpdate) / 1000;
     
-    if (this.targetSpeed > this.speed) {
-      this.speed += Math.min(this.accel * dt, this.targetSpeed - this.speed);
-    } else {
-      this.speed += Math.max(-this.accel * dt, this.targetSpeed - this.speed);
-    }
+    // if (this.targetSpeed > this.speed) {
+    //   this.speed += Math.min(this.accel * dt, this.targetSpeed - this.speed);
+    // } else {
+    //   this.speed += Math.max(-this.accel * dt, this.targetSpeed - this.speed);
+    // }
 
-    if (this.targetAngularSpeed > this.angularSpeed) {
-      this.angularSpeed += Math.min(this.angularAccel * dt, this.targetAngularSpeed - this.angularSpeed);
-    } else {
-      this.angularSpeed += Math.max(-this.angularAccel * dt, this.targetAngularSpeed - this.angularSpeed);
-    }
+    // if (this.targetAngularSpeed > this.angularSpeed) {
+    //   this.angularSpeed += Math.min(this.angularAccel * dt, this.targetAngularSpeed - this.angularSpeed);
+    // } else {
+    //   this.angularSpeed += Math.max(-this.angularAccel * dt, this.targetAngularSpeed - this.angularSpeed);
+    // }
 
+    this.speed = this.targetSpeed;
+    this.angularSpeed = this.targetAngularSpeed
+      
     // console.log("speeds:", this.speed, "->", this.targetSpeed, "angles:", this.angularSpeed, "->", this.targetAngularSpeed);
       
     this.lastUpdate = now;
